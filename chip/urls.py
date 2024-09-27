@@ -3,5 +3,5 @@ from .views import ChipListView
 
 
 urlpatterns = [
-    path('', ChipListView.as_view(), name='chip-list'),
+    path('chip', ChipListView.as_view(), name='chip-list'),
 ]
