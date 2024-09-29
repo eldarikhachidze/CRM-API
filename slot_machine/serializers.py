@@ -17,3 +17,12 @@ class SlotMachineSerializer(serializers.ModelSerializer):
             raise serializers.ValidationError("A Slot Machine with this name already exists.")
         return value
 
+class SlotMachineBvbMoneySerializer(serializers.ModelSerializer):
+    class Meta:
+        model = SlotMachine
+        fields = ['bvbMoney']
+
+    def validate_bvbMoney(self, value):
+        if value < 0:
+            raise serializers.ValidationError("Bvb Money cannot be negative.")
+        return value

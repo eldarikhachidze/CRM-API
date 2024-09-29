@@ -1,7 +1,8 @@
 from django.shortcuts import render
-from rest_framework import generics
+from rest_framework import generics, status
+from rest_framework.response import Response
 from .models import SlotMachine
-from .serializers import SlotMachineSerializer
+from .serializers import SlotMachineSerializer, SlotMachineBvbMoneySerializer
 
 # Create your views here.
 
@@ -10,16 +11,26 @@ class SlotMachineListCreateView(generics.ListAPIView):
     queryset = SlotMachine.objects.all()
     serializer_class = SlotMachineSerializer
 
-class SlotMachineCreateView(generics.CreateAPIView):
+
+
+class SlotMachineBvbMoneyUpdateView(generics.UpdateAPIView):
     queryset = SlotMachine.objects.all()
-    serializer_class = SlotMachineSerializer
+    serializer_class = SlotMachineBvbMoneySerializer
+    lookup_field = 'pk'
 
-    # Override the post method to handle creation
-    def post(self, request, *args, **kwargs):
-        serializer = self.get_serializer(data=request.data)
-
-        if serializer.is_valid():
-            serializer.save()  # Save the new object to the database
-            return Response(serializer.data, status=status.HTTP_201_CREATED)
-        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
-
+    def patch(self, request, *args, **kwargs):
+        try:
+            slot_machine = self.get_object()
+            serializer = self.get_serializer(slot_machine, data=request.data, partial=True)
+            if serializer.is_valid():
+                serializer.save()
+                return Response({
+                    "success": True,
+                    "message": "BVB Money updated successfully!"  # Make sure message is included
+                }, status=status.HTTP_200_OK)
+            return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+        except SlotMachine.DoesNotExist:
+            return Response({
+                "error": True,
+                "message": "SlotMachine not found."  # Error message included here
+            }, status=status.HTTP_404_NOT_FOUND)
