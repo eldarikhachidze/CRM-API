@@ -21,5 +21,5 @@ urlpatterns = [
     path('admin/', admin.site.urls),
     path('api/', include('auth.urls')),
     path('api/', include('chip.urls')),
-    path('api/', include('slot_machine.urls')),
+    path('api/slot/', include('slot_machine.urls')),
 ]
