@@ -1,7 +1,7 @@
 # urls.py
 from django.urls import path
 from .views import (
-    HallListCreateView, 
+    HallListView,
     SlotMachineListCreateView, 
     GameDayListCreateView, 
     DailyAmountListCreateView, 
@@ -13,7 +13,7 @@ from .views import (
 )
 
 urlpatterns = [
-    path('halls/', HallListCreateView.as_view(), name='hall-list-create'),
+    path('halls/', HallListView.as_view(), name='hall-list-create'),
     path('slot-machines/', SlotMachineListCreateView.as_view(), name='slot-machine-list-create'),
     path('game-days/', GameDayListCreateView.as_view(), name='game-day-list-create'),
     path('game-days/<int:id>/', GameDayRetrieveView.as_view(), name='game-day-retrieve'),

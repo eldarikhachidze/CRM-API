@@ -4,7 +4,13 @@ from .models import SlotMachine, Hall, GameDay, DailyAmount
 
 
 
+class DailyAmountSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = DailyAmount
+        fields = '__all__'
+
 class SlotMachineSerializer(serializers.ModelSerializer):
+    daily_amounts = DailyAmountSerializer(many=True, read_only=True)
     class Meta:
         model = SlotMachine
         fields = '__all__'
@@ -17,17 +23,20 @@ class SlotMachineSerializer(serializers.ModelSerializer):
             raise serializers.ValidationError("A Slot Machine with this name already exists.")
         return value
 
-class DailyAmountSerializer(serializers.ModelSerializer):
-    slot_machine = SlotMachineSerializer()
-    class Meta:
-        model = DailyAmount
-        fields = '__all__'
 
 class HallSerializer(serializers.ModelSerializer):
-    slot_machines = SlotMachineSerializer(many=True)
+    slot_machines = SlotMachineSerializer(many=True, read_only=True)
+    daily_money_sum = serializers.SerializerMethodField()
     class Meta:
         model = Hall
         fields = '__all__'
+
+    def get_daily_money_sum(self, obj):
+        total_daily_amount = sum(
+            daily.amount for slot_machines in obj.slot_machines.all()
+            for daily in slot_machines.daily_amounts.all()
+        )
+        return total_daily_amount
 
     # Validate the name field for uniqueness
     def validate_name(self, value):
@@ -55,5 +64,3 @@ class GameDaySerializer(serializers.ModelSerializer):
 class FullDatabaseSerializer(serializers.Serializer):
     halls = HallSerializer(many=True)
     game_days = GameDaySerializer(many=True)
-
-
