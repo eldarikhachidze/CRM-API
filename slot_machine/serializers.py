@@ -27,9 +27,28 @@ class SlotMachineSerializer(serializers.ModelSerializer):
 class HallSerializer(serializers.ModelSerializer):
     slot_machines = SlotMachineSerializer(many=True, read_only=True)
     daily_money_sum = serializers.SerializerMethodField()
+    slot_machines_by_brand = serializers.SerializerMethodField()
     class Meta:
         model = Hall
         fields = '__all__'
+
+    def get_slot_machines_by_brand(self, obj):
+        brand_data  = {}
+        for slot_machine in obj.slot_machines.all():
+            brand = slot_machine.brand
+            daily_total = sum(
+                daily.amount for daily in slot_machine.daily_amounts.all()
+            )
+            if brand in brand_data:
+                brand_data[brand]['count'] += 1
+                brand_data[brand]['total_money'] += daily_total
+            else:
+                brand_data[brand] = {
+                    'count': 1,
+                    'total_money': daily_total
+                }
+
+        return brand_data
 
     def get_daily_money_sum(self, obj):
         total_daily_amount = sum(
