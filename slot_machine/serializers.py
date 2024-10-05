@@ -1,6 +1,6 @@
 from rest_framework import serializers
+from django.utils import timezone
 from .models import SlotMachine, Hall, GameDay, DailyAmount
-
 
 
 
@@ -14,6 +14,28 @@ class SlotMachineSerializer(serializers.ModelSerializer):
     class Meta:
         model = SlotMachine
         fields = '__all__'
+
+
+    def create(self, validated_data):
+        # Create the SlotMachine object
+        slot_machine = SlotMachine.objects.create(**validated_data)
+
+        # Get or create the most recent GameDay
+        game_day, created = GameDay.objects.get_or_create(
+            date=timezone.now().date()
+        )
+
+        # Automatically create DailyAmount for the newly created SlotMachine
+        try:
+            DailyAmount.objects.create(
+                slot_machine=slot_machine,
+                game_day=game_day,
+                amount=0.00  # Default amount set to 0
+            )
+        except Exception as e:
+            raise serializers.ValidationError(f"An error occurred: {e}")
+
+        return slot_machine
 
     # Validate the name field for uniqueness
     def validate_name(self, value):

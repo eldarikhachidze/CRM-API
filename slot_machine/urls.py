@@ -9,7 +9,11 @@ from .views import (
     FullDatabaseView,
     HallsWithSlotMachinesView,
     DailyAmountListCreateView,
-    DailyAmountRetrieveUpdateDestroyView
+    DailyAmountRetrieveUpdateDestroyView,
+    SlotMachineAddToHallView,
+    SlotMachineRemoveFromHallView,
+    SlotMachineDeleteView,
+    SlotMachineChangeAmountMoneyView
 )
 
 urlpatterns = [
@@ -22,6 +26,9 @@ urlpatterns = [
     path('halls-with-slot-machines/', HallsWithSlotMachinesView.as_view(), name='halls-with-slot-machines'),
     path('daily-amounts/', DailyAmountListCreateView.as_view(), name='daily-amount-list-create'),
     path('daily-amounts/<int:id>/', DailyAmountRetrieveUpdateDestroyView.as_view(), name='daily-amount-retrieve-update-destroy'),
-
+    path('add-slot-to-hall/<int:slot_machine_id>/<int:hall_id>/', SlotMachineAddToHallView.as_view(), name='add-slot-machine-to-hall'),
+    path('remove-slot-from-hall/<int:slot_machine_id>/', SlotMachineRemoveFromHallView.as_view(), name='remove-slot-machine-from-hall'),
+    path('delete-slot-machine/<int:slot_machine_id>/', SlotMachineDeleteView.as_view(), name='delete-slot-machine'),
+    path('close-slot-machine/<int:slot_machine_id>/', SlotMachineChangeAmountMoneyView.as_view(), name='change-amount-money'),
 
 ]
