@@ -1,3 +1,4 @@
+from datetime import datetime, timedelta
 from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework import generics, status
@@ -9,28 +10,82 @@ from .serializers import SlotMachineSerializer, HallSerializer, GameDaySerialize
 
 class HallListView(APIView):
     def get(self, request, *args, **kwargs):
-        halls = Hall.objects.prefetch_related('slot_machines__daily_amounts').all()
-        serializer = HallSerializer(halls, many=True)
-        return Response(serializer.data, status=status.HTTP_200_OK)
+        start_date = request.query_params.get('start_date')
+        end_date = request.query_params.get('end_date')
 
-class FullDatabaseView(APIView):
+        try:
+            if start_date and end_date:
+                # Convert the date strings to date-only objects (ignoring time)
+                start_date = datetime.strptime(start_date, "%Y-%m-%d").date()
+                end_date = datetime.strptime(end_date, "%Y-%m-%d").date()
+
+                # Filter halls by slot machines' daily amounts within the date range
+                halls = Hall.objects.filter(
+                    slot_machines__daily_amounts__game_day__date__range=[start_date, end_date]
+                ).distinct()
+            else:
+                # If no start and end date, get the most recent game day
+                current_game_day = GameDay.objects.latest('date')
+                halls = Hall.objects.filter(
+                    slot_machines__daily_amounts__game_day=current_game_day
+                ).distinct()
+
+            serializer = HallSerializer(halls, many=True)
+            return Response(serializer.data, status=status.HTTP_200_OK)
+
+        except GameDay.DoesNotExist:
+            return Response({"error": "No GameDay record exists."}, status=status.HTTP_404_NOT_FOUND)
+        except Exception as e:
+            return Response({"error": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+
+class CurrentGameDayView(APIView):
 
     def get(self, request, *args, **kwargs):
+        # Get the most recent GameDay
+        try:
+            current_game_day = GameDay.objects.latest('date')
+        except GameDay.DoesNotExist:
+            return Response({"error": "No GameDay record exists."}, status=status.HTTP_404_NOT_FOUND)
+
         halls = Hall.objects.all()
-        game_days = GameDay.objects.all()
 
-        total_daily_amount = sum(
-            daily.amount for hall in halls
-            for slot_machine in hall.slot_machines.all()
-            for daily in slot_machine.daily_amounts.all()
-        )
+        total_daily_amount = 0
+        hall_data = []
 
-        hall_serializer = HallSerializer(halls, many=True)
-        game_day_serializer = GameDaySerializer(game_days, many=True)
+        # Iterate through halls and slot machines
+        for hall in halls:
+            slot_machines = []
 
+            for slot_machine in hall.slot_machines.all():
+                # Filter to get only the daily amount for the current game day
+                daily_amount = slot_machine.daily_amounts.filter(game_day=current_game_day).first()
+
+                if daily_amount:
+                    total_daily_amount += daily_amount.amount
+
+                    slot_machine_data = {
+                        'id': slot_machine.id,
+                        'name': slot_machine.name,
+                        'brand': slot_machine.brand,
+                        'daily_amounts': [{'id': daily_amount.id, 'amount': daily_amount.amount}]
+                    }
+                    slot_machines.append(slot_machine_data)
+
+            hall_data.append({
+                'id': hall.id,
+                'name': hall.name,
+                'daily_money_sum': sum(slot['daily_amounts'][0]['amount'] for slot in slot_machines),
+                'slot_machines': slot_machines
+            })
+
+        # Serialize the current game day
+        game_day_serializer = GameDaySerializer(current_game_day)
+
+        # Prepare the response data
         data = {
-            'halls': hall_serializer.data,
-            'game_days': game_day_serializer.data,
+            'halls': hall_data,
+            'game_days': [game_day_serializer.data],  # Only return the current game day
             'total_daily_amount': total_daily_amount
         }
 
@@ -171,45 +226,56 @@ class SlotMachineRemoveFromHallView(APIView):
 
 
 class GameDayListCreateView(APIView):
+
     def get(self, request, *args, **kwargs):
         game_days = GameDay.objects.all()
         serializer = GameDaySerializer(game_days, many=True)
         return Response(serializer.data, status=status.HTTP_200_OK)
 
     def post(self, request, *args, **kwargs):
-        serializer = GameDaySerializer(data=request.data)
-        print(f"Request Data: {request.data}")
+        # Get the current date from the request
+        current_date = request.data.get('date')
+        print(f"Current Date from Frontend: {current_date}")
 
-        if serializer.is_valid():
-            date = serializer.validated_data['date']
-            print(f"Date: {date}")
-            game_day, created = GameDay.objects.get_or_create(date=date)
-            print(f"Game Day: {game_day}, Created: {created}")
+        if not current_date:
+            return Response({"error": "Date is required."}, status=status.HTTP_400_BAD_REQUEST)
+
+        try:
+            # Check if the current date exists in the GameDay model
+            game_day_exists = GameDay.objects.filter(date=current_date).exists()
+
+            if game_day_exists:
+                # If the current game day exists, create a new day with the next day date
+                new_date = (datetime.strptime(current_date, "%Y-%m-%d") + timedelta(days=1)).date()
+                print(f"New Date to be created: {new_date}")
+            else:
+                # If the current date doesn't exist, set it as the new date
+                new_date = current_date
+
+            # Create or get the new GameDay object
+            game_day, created = GameDay.objects.get_or_create(date=new_date)
 
             if not created:
                 return Response({"error": "A Game Day with this date already exists."}, status=status.HTTP_400_BAD_REQUEST)
 
+            # Fetch all slot machines for which DailyAmount needs to be created
             slot_machines = SlotMachine.objects.all()
 
-            # Ensure there are slot machines to create DailyAmount for
             if not slot_machines.exists():
                 return Response({"error": "No slot machines found to create DailyAmount entries."}, status=status.HTTP_400_BAD_REQUEST)
 
-            for slot_machine in slot_machines:
-                try:
-                    # Create DailyAmount for each slot machine
-                    daily_amount = DailyAmount.objects.create(
-                        slot_machine=slot_machine,
-                        game_day=game_day,
-                        amount=0.00  # Default amount to 0
-                    )
-                    print(f"Created DailyAmount for Slot Machine {slot_machine.id} on Game Day {game_day.date}")
-                except Exception as e:
-                    print(f"Error creating DailyAmount for Slot Machine {slot_machine.id}: {str(e)}")
+            # Prepare and create DailyAmount for each slot machine
+            daily_amounts = [
+                DailyAmount(slot_machine=slot_machine, game_day=game_day, amount=0.00)
+                for slot_machine in slot_machines
+            ]
+            DailyAmount.objects.bulk_create(daily_amounts)
 
-            return Response({"message": "GameDay created and DailyAmount records added."}, status=status.HTTP_201_CREATED)
+            return Response({"message": "New GameDay created and DailyAmount records added."}, status=status.HTTP_201_CREATED)
 
-        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+        except Exception as e:
+            print(f"Error: {str(e)}")
+            return Response({"error": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 
 
