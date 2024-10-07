@@ -54,7 +54,7 @@ class SlotMachineSerializer(serializers.ModelSerializer):
 
 
 class HallSerializer(serializers.ModelSerializer):
-    slot_machines = serializers.SerializerMethodField()  # We'll process the slot machines separately
+    slot_machines = SlotMachineSerializer(many=True, read_only=True)
     daily_money_sum = serializers.SerializerMethodField()
     slot_machines_by_brand = serializers.SerializerMethodField()
 
@@ -62,37 +62,17 @@ class HallSerializer(serializers.ModelSerializer):
         model = Hall
         fields = '__all__'
 
-    def get_slot_machines(self, obj):
-        current_game_day = GameDay.objects.latest('date')
-        slot_machines_data = []
-
-        for slot_machine in obj.slot_machines.all():
-            # Filter to get only the daily amount for the current game day
-            daily_amount = slot_machine.daily_amounts.filter(game_day=current_game_day).first()
-
-            if daily_amount:
-                slot_machines_data.append({
-                    'id': slot_machine.id,
-                    'name': slot_machine.name,
-                    'brand': slot_machine.brand,
-                    'daily_amount': daily_amount.amount,  # Only return the daily amount for the current day
-                })
-
-        return slot_machines_data
-
     def get_slot_machines_by_brand(self, obj):
-        brand_data = {}
-        current_game_day = GameDay.objects.latest('date')
+        brand_data  = {}
+        start_date = self.context.get('start_date')
+        end_date = self.context.get('end_date')
 
         for slot_machine in obj.slot_machines.all():
-            # Get the daily amount for the current game day
-            daily_amount = slot_machine.daily_amounts.filter(game_day=current_game_day).first()
-            if not daily_amount:
-                continue
-
             brand = slot_machine.brand
-            daily_total = daily_amount.amount
-
+            # Filter daily_amounts based on the date range
+            daily_total = sum(
+                daily.amount for daily in slot_machine.daily_amounts.filter(game_day__date__range=[start_date, end_date])
+            )
             if brand in brand_data:
                 brand_data[brand]['count'] += 1
                 brand_data[brand]['total_money'] += daily_total
@@ -105,11 +85,26 @@ class HallSerializer(serializers.ModelSerializer):
         return brand_data
 
     def get_daily_money_sum(self, obj):
-        current_game_day = GameDay.objects.latest('date')
-        total_daily_amount = sum(
-            daily.amount for slot_machine in obj.slot_machines.all()
-            for daily in slot_machine.daily_amounts.filter(game_day=current_game_day)
-        )
+            # Get the current game day or filtered days
+        current_game_day = self.context.get('current_game_day', None)
+        start_date = self.context.get('start_date', None)
+        end_date = self.context.get('end_date', None)
+
+        # Calculate total daily amount for each slot machine in the hall
+        total_daily_amount = 0
+        for slot_machine in obj.slot_machines.all():
+            if current_game_day:
+                # Filter for daily amounts within the game day
+                daily_amounts = slot_machine.daily_amounts.filter(game_day=current_game_day)
+            elif start_date and end_date:
+                # Filter by date range
+                daily_amounts = slot_machine.daily_amounts.filter(game_day__date__range=[start_date, end_date])
+            else:
+                # Otherwise, just sum all daily amounts
+                daily_amounts = slot_machine.daily_amounts.all()
+
+            total_daily_amount += sum(daily.amount for daily in daily_amounts)
+
         return total_daily_amount
 
 

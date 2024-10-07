@@ -10,34 +10,26 @@ from .serializers import SlotMachineSerializer, HallSerializer, GameDaySerialize
 
 class HallListView(APIView):
     def get(self, request, *args, **kwargs):
+        # Get the start_date and end_date from the request query params
         start_date = request.query_params.get('start_date')
         end_date = request.query_params.get('end_date')
 
-        try:
-            if start_date and end_date:
-                # Convert the date strings to date-only objects (ignoring time)
-                start_date = datetime.strptime(start_date, "%Y-%m-%d").date()
-                end_date = datetime.strptime(end_date, "%Y-%m-%d").date()
+        # If no date range is provided, use the most recent GameDay
+        if not start_date or not end_date:
+            try:
+                # Fetch the most recent GameDay
+                latest_game_day = GameDay.objects.latest('date')
+                start_date = latest_game_day.date
+                end_date = latest_game_day.date
+            except GameDay.DoesNotExist:
+                return Response({"error": "No GameDay record exists."}, status=status.HTTP_404_NOT_FOUND)
 
-                # Filter halls by slot machines' daily amounts within the date range
-                halls = Hall.objects.filter(
-                    slot_machines__daily_amounts__game_day__date__range=[start_date, end_date]
-                ).distinct()
-            else:
-                # If no start and end date, get the most recent game day
-                current_game_day = GameDay.objects.latest('date')
-                halls = Hall.objects.filter(
-                    slot_machines__daily_amounts__game_day=current_game_day
-                ).distinct()
+        # Prefetch related slot machines and daily amounts
+        halls = Hall.objects.prefetch_related('slot_machines__daily_amounts').all()
 
-            serializer = HallSerializer(halls, many=True)
-            return Response(serializer.data, status=status.HTTP_200_OK)
-
-        except GameDay.DoesNotExist:
-            return Response({"error": "No GameDay record exists."}, status=status.HTTP_404_NOT_FOUND)
-        except Exception as e:
-            return Response({"error": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
-
+        # Pass the context with the date range
+        serializer = HallSerializer(halls, many=True, context={'start_date': start_date, 'end_date': end_date})
+        return Response(serializer.data, status=status.HTTP_200_OK)
 
 class CurrentGameDayView(APIView):
 
