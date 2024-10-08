@@ -1,3 +1,4 @@
+from django.db.models import Prefetch
 from datetime import datetime, timedelta
 from rest_framework.views import APIView
 from rest_framework.response import Response
@@ -19,17 +20,21 @@ class HallListView(APIView):
             try:
                 # Fetch the most recent GameDay
                 latest_game_day = GameDay.objects.latest('date')
-                start_date = latest_game_day.date
-                end_date = latest_game_day.date
+                start_date = end_date = latest_game_day.date.isoformat()
             except GameDay.DoesNotExist:
                 return Response({"error": "No GameDay record exists."}, status=status.HTTP_404_NOT_FOUND)
 
-        # Prefetch related slot machines and daily amounts
-        halls = Hall.objects.prefetch_related('slot_machines__daily_amounts').all()
-
+        # Prefetch related slot machines and daily amounts, filter by the specified or latest date range
+        halls = Hall.objects.prefetch_related(
+            Prefetch('slot_machines__daily_amounts', queryset=DailyAmount.objects.filter(game_day__date__range=[start_date, end_date]))
+        ).distinct()
         # Pass the context with the date range
-        serializer = HallSerializer(halls, many=True, context={'start_date': start_date, 'end_date': end_date})
+        serializer = HallSerializer(halls, many=True, context={
+                'start_date': start_date,
+                'end_date': end_date
+            })
         return Response(serializer.data, status=status.HTTP_200_OK)
+
 
 class CurrentGameDayView(APIView):
 
@@ -77,7 +82,7 @@ class CurrentGameDayView(APIView):
         # Prepare the response data
         data = {
             'halls': hall_data,
-            'game_days': [game_day_serializer.data],  # Only return the current game day
+            'game_day': [game_day_serializer.data],  # Only return the current game day
             'total_daily_amount': total_daily_amount
         }
 
@@ -217,7 +222,7 @@ class SlotMachineRemoveFromHallView(APIView):
         return Response({"message": f"Slot Machine {slot_machine.name} has been removed from its hall."}, status=status.HTTP_200_OK)
 
 
-class GameDayListCreateView(APIView):
+class CloseOpenGameDayView(APIView):
 
     def get(self, request, *args, **kwargs):
         game_days = GameDay.objects.all()
