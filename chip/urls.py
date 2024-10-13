@@ -1,7 +1,8 @@
 from django.urls import path
-from .views import ChipListView
+from .views import ChipListCreate, ChipDetailUpdateDelete
 
 
 urlpatterns = [
-    path('chip', ChipListView.as_view(), name='chip-list'),
+    path('', ChipListCreate.as_view(), name='chip-list'),
+    path('<int:pk>/', ChipDetailUpdateDelete.as_view(), name='chipmodel-detail-update-delete'),
 ]
