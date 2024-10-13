@@ -69,10 +69,12 @@ class HallSerializer(serializers.ModelSerializer):
 
         for slot_machine in obj.slot_machines.all():
             brand = slot_machine.brand
-            # Filter daily_amounts based on the date range
+
             daily_total = sum(
-                daily.amount for daily in slot_machine.daily_amounts.filter(game_day__date__range=[start_date, end_date])
+                daily.amount for daily in slot_machine.daily_amounts.filter(
+                    game_day__date__range=[start_date, end_date])
             )
+
             if brand in brand_data:
                 brand_data[brand]['count'] += 1
                 brand_data[brand]['total_money'] += daily_total
@@ -86,23 +88,16 @@ class HallSerializer(serializers.ModelSerializer):
 
     def get_daily_money_sum(self, obj):
             # Get the current game day or filtered days
-        current_game_day = self.context.get('current_game_day', None)
-        start_date = self.context.get('start_date', None)
-        end_date = self.context.get('end_date', None)
+        current_game_day = self.context.get('current_game_day')
+        start_date = self.context.get('start_date')
+        end_date = self.context.get('end_date')
 
         # Calculate total daily amount for each slot machine in the hall
         total_daily_amount = 0
         for slot_machine in obj.slot_machines.all():
-            if current_game_day:
-                # Filter for daily amounts within the game day
-                daily_amounts = slot_machine.daily_amounts.filter(game_day=current_game_day)
-            elif start_date and end_date:
-                # Filter by date range
-                daily_amounts = slot_machine.daily_amounts.filter(game_day__date__range=[start_date, end_date])
-            else:
-                # Otherwise, just sum all daily amounts
-                daily_amounts = slot_machine.daily_amounts.all()
-
+            daily_amounts = slot_machine.daily_amounts.filter(
+                game_day__date__range=[start_date, end_date]
+            )
             total_daily_amount += sum(daily.amount for daily in daily_amounts)
 
         return total_daily_amount
