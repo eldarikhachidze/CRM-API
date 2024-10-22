@@ -6,6 +6,13 @@ class TableSerializer(serializers.ModelSerializer):
         model = Table
         fields = '__all__'
 
+    def validate_name(self, value):
+        if not value:
+            raise serializers.ValidationError("The name field cannot be empty.")
+        if Table.objects.filter(name=value).exists():
+            raise serializers.ValidationError("A Table with this name already exists.")
+        return value
+
     def validate_open_flot(self, value):
         # Ensure that opening chips are provided in the correct format
         if not isinstance(value, dict):

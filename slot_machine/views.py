@@ -1,3 +1,4 @@
+import re
 from django.db.models import Prefetch
 from datetime import datetime, timedelta
 from rest_framework.views import APIView
@@ -91,7 +92,15 @@ class CurrentGameDayView(APIView):
 class SlotMachineListCreateView(APIView):
     def get(self, request, *args, **kwargs):
         slot_machines = SlotMachine.objects.all()
-        serializer = SlotMachineSerializer(slot_machines, many=True)
+
+        # Custom sorting function to sort by numeric value in name
+        def natural_sort_key(s):
+            return [int(text) if text.isdigit() else text.lower() for text in re.split('(\d+)', s)]
+
+        # Sort the slot machines by name using the custom sort function
+        sorted_slot_machines = sorted(slot_machines, key=lambda x: natural_sort_key(x.name))
+
+        serializer = SlotMachineSerializer(sorted_slot_machines, many=True)
         return Response(serializer.data, status=status.HTTP_200_OK)
 
     def post(self, request, *args, **kwargs):
@@ -171,18 +180,28 @@ class SlotMachineChangeAmountMoneyView(APIView):
 
         return Response({"message": "Slot closed successfully."}, status=status.HTTP_200_OK)
 
-class SlotMachineDeleteView(APIView):
+
+
+class SlotMachineDetailUpdateDeleteView(generics.RetrieveUpdateDestroyAPIView):
+    queryset = SlotMachine.objects.all()
+    serializer_class = SlotMachineSerializer
+    lookup_field = 'pk'
+
+    def update(self, request, *args, **kwargs):
+        instance = self.get_object()  # Get the instance to be updated
+        serializer = self.get_serializer(instance, data=request.data, partial=True)  # Use partial=True for partial updates
+        serializer.is_valid(raise_exception=True)
+        self.perform_update(serializer)
+
+        return Response({
+            "message": "Slot Machine updated successfully."
+        }, status=status.HTTP_200_OK)
+
     def delete(self, request, *args, **kwargs):
-        slot_machine_id = kwargs.get('slot_machine_id')
+            instance = self.get_object()
+            self.perform_destroy(instance)
+            return Response({"message": "Slot deleted successfully"}, status=status.HTTP_200_OK)
 
-        try:
-            slot_machine = SlotMachine.objects.get(id=slot_machine_id)
-        except SlotMachine.DoesNotExist:
-            return Response({"error": "Slot Machine not found."}, status=status.HTTP_404_NOT_FOUND)
-
-        slot_machine.delete()
-
-        return Response({"message": "Slot Machine has been deleted."}, status=status.HTTP_200_OK)
 
 
 class SlotMachineAddToHallView(APIView):

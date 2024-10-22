@@ -12,7 +12,7 @@ from .views import (
     DailyAmountRetrieveUpdateDestroyView,
     SlotMachineAddToHallView,
     SlotMachineRemoveFromHallView,
-    SlotMachineDeleteView,
+    SlotMachineDetailUpdateDeleteView,
     SlotMachineChangeAmountMoneyView
 )
 
@@ -34,7 +34,7 @@ urlpatterns = [
     #+
     path('remove-slot-from-hall/<int:slot_machine_id>/', SlotMachineRemoveFromHallView.as_view(), name='remove-slot-machine-from-hall'),
     #+
-    path('delete-slot-machine/<int:slot_machine_id>/', SlotMachineDeleteView.as_view(), name='delete-slot-machine'),
+    path('slot-machine/<int:pk>/', SlotMachineDetailUpdateDeleteView.as_view(), name='delete-slot-machine'),
     #+
     path('close-slot-machine/<int:slot_machine_id>/', SlotMachineChangeAmountMoneyView.as_view(), name='change-amount-money'),
 

@@ -47,8 +47,15 @@ class SlotMachineSerializer(serializers.ModelSerializer):
     def validate_name(self, value):
         if not value:
             raise serializers.ValidationError("The name field cannot be empty.")
+
+        # If this is an update, do not check for existing names
+        if self.instance:
+            return value
+
+        # If creating a new instance, check for uniqueness
         if SlotMachine.objects.filter(name=value).exists():
             raise serializers.ValidationError("A Slot Machine with this name already exists.")
+
         return value
 
 
