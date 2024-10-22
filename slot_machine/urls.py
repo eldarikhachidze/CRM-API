@@ -20,7 +20,7 @@ urlpatterns = [
     #+
     path('halls/', HallListView.as_view(), name='hall-list-create'),
     #+
-    path('slot-machines/', SlotMachineListCreateView.as_view(), name='slot-machine-list-create'),
+    path('slot-machine/', SlotMachineListCreateView.as_view(), name='slot-machine-list-create'),
     #+
     path('close-game-day/', CloseOpenGameDayView.as_view(), name='close-game-day'),
     path('game-days/<int:id>/', GameDayRetrieveView.as_view(), name='game-day-retrieve'),

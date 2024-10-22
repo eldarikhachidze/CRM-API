@@ -70,6 +70,9 @@ class CurrentGameDayView(APIView):
                     }
                     slot_machines.append(slot_machine_data)
 
+            # Sort slot machines by name (converted to integer for numerical sorting)
+            slot_machines.sort(key=lambda x: int(x['name']))
+
             hall_data.append({
                 'id': hall.id,
                 'name': hall.name,
@@ -88,6 +91,7 @@ class CurrentGameDayView(APIView):
         }
 
         return Response(data, status=status.HTTP_200_OK)
+
 
 class SlotMachineListCreateView(APIView):
     def get(self, request, *args, **kwargs):
