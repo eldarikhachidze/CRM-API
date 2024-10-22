@@ -24,8 +24,12 @@ class TableSerializer(serializers.ModelSerializer):
         open_flot = validated_data.get('open_flot', {})
         sorted_open_flot = dict(sorted(open_flot.items(), key=lambda x: float(x[0])))
 
-        # Update validated_data with sorted open_flot
+        # Calculate open_flot_total
+        open_flot_total = sum(float(denomination) * quantity for denomination, quantity in sorted_open_flot.items())
+
+        # Update validated_data with sorted open_flot and calculated total
         validated_data['open_flot'] = sorted_open_flot
+        validated_data['open_flot_total'] = open_flot_total
 
         # Create the table instance
         table = Table.objects.create(**validated_data)
