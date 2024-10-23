@@ -1,8 +1,8 @@
 from rest_framework import generics
 from rest_framework import status
 from rest_framework.response import Response
-from .models import Table, CloseFloot
-from .serializers import TableSerializer, CloseFlootSerializer
+from .models import Table, CloseFloot, Hall, GameDay
+from .serializers import TableSerializer, CloseFlootSerializer, HallSerializer
 
 class TableListCreate(generics.ListCreateAPIView):
     queryset = Table.objects.all().order_by('name')
@@ -34,6 +34,41 @@ class TableRetrieveUpdateDestroy(generics.RetrieveUpdateDestroyAPIView):
         self.perform_destroy(instance)
         return Response({"message": "Table has been Deleted."}, status=status.HTTP_200_OK)
 
+class AddTableToHall(generics.UpdateAPIView):
+    def put(self, request, table_id, hall_id):
+        try:
+            # Get the table and hall objects
+            table = Table.objects.get(pk=table_id)
+            hall = Hall.objects.get(pk=hall_id)
+        except Table.DoesNotExist:
+            return Response({"message": "Table does not exist."}, status=status.HTTP_404_NOT_FOUND)
+        except Hall.DoesNotExist:
+            return Response({"message": "Hall does not exist."}, status=status.HTTP_404_NOT_FOUND)
+
+        # Assign the hall to the table
+        table.hall = hall
+        table.save()
+
+        return Response({"message": "Table has been added to Hall."}, status=status.HTTP_200_OK)
+
+class RemoveTableFromHall(generics.UpdateAPIView):
+    queryset = Table.objects.all()
+    serializer_class = TableSerializer
+
+    def put(self, request, *args, **kwargs):
+        try:
+            table = Table.objects.get(pk=kwargs['pk'])
+        except Table.DoesNotExist:
+            return Response({"message": "Table does not exist."}, status=status.HTTP_404_NOT_FOUND)
+
+        table.hall = None
+        table.save()
+        return Response({"message": "Table has been removed from Hall."}, status=status.HTTP_200_OK)
+
+
+class HallListCreate(generics.ListCreateAPIView):
+    queryset = Hall.objects.all().order_by('name')
+    serializer_class = HallSerializer
 
 class CloseFlootListCreate(generics.ListCreateAPIView):
     queryset = CloseFloot.objects.all()

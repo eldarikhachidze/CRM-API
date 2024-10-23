@@ -16,6 +16,7 @@ class DailyAmountSerializer(serializers.ModelSerializer):
         return value
 
 class SlotMachineSerializer(serializers.ModelSerializer):
+    hall = serializers.CharField(source='hall.name', read_only=True)
     daily_amounts = DailyAmountSerializer(many=True, read_only=True)
     class Meta:
         model = SlotMachine

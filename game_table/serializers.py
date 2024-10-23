@@ -1,7 +1,9 @@
 from rest_framework import serializers
-from .models import Table, CloseFloot
+from .models import Table, CloseFloot, Hall, GameDay
 
 class TableSerializer(serializers.ModelSerializer):
+    hall = serializers.CharField(source='hall.name', read_only=True)
+
     class Meta:
         model = Table
         fields = '__all__'
@@ -48,6 +50,23 @@ class TableSerializer(serializers.ModelSerializer):
 
         table = super().update(instance, validated_data)
         return table
+
+class HallSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Hall
+        fields = '__all__'
+
+    def validate_name(self, value):
+        if self.instance:
+            return value
+
+        if not value:
+            raise serializers.ValidationError("The name field cannot be empty.")
+
+        if Hall.objects.filter(name=value).exists():
+            raise serializers.ValidationError("A Hall with this name already exists.")
+
+        return value
 
 class CloseFlootSerializer(serializers.ModelSerializer):
     class Meta:
