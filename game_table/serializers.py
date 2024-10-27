@@ -52,9 +52,10 @@ class TableSerializer(serializers.ModelSerializer):
         return table
 
 class HallSerializer(serializers.ModelSerializer):
+    tables = TableSerializer(many=True, read_only=True, source='table_set')
     class Meta:
         model = Hall
-        fields = '__all__'
+        fields = ['id', 'name', 'created_at', 'updated_at', 'deleted_at', 'tables']
 
     def validate_name(self, value):
         if self.instance:
