@@ -21,6 +21,7 @@ class CloseFloot(models.Model):
     table = models.ForeignKey(Table, on_delete=models.CASCADE)
     game_day = models.ForeignKey('GameDay', on_delete=models.CASCADE)
     close_flot_total = models.FloatField(default=0.0)
+    result = models.FloatField(default=0.0)  # Add this line if it's missing
     close_date = models.DateTimeField(null=True, blank=True)
     created_at = models.DateTimeField(default=timezone.now)
     updated_at = models.DateTimeField(null=True, blank=True)

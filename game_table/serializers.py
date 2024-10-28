@@ -1,8 +1,52 @@
 from rest_framework import serializers
 from .models import Table, CloseFloot, Hall, GameDay
 
+
+class CloseFlootSerializer(serializers.ModelSerializer):
+    table_id = serializers.IntegerField(write_only=True)  # Now this is mapped directly to the input `table_id`
+    game_day = serializers.IntegerField(write_only=True)  # Now this is mapped directly to the input `game_day_id`
+
+    class Meta:
+        model = CloseFloot
+        fields = ['table_id', 'game_day', 'close_flot', 'close_flot_total', 'result', 'close_date']
+
+    def create(self, validated_data):
+        print("Validated data received:", validated_data)  # For debugging
+        table_id = validated_data.pop('table_id')
+        game_day_id = validated_data.pop('game_day')  # Assuming this is the ID, not the instance
+        close_flot = validated_data.pop('close_flot')  # Extract close_flot explicitly
+
+        close_flot_total = sum(float(denomination) * float(quantity) for denomination, quantity in close_flot.items() if isinstance(quantity, (int, float)))
+        print("Close flot total:", close_flot_total)  # For debugging
+        try:
+            table = Table.objects.get(id=table_id)
+            open_flot_total = table.open_flot_total
+        except Table.DoesNotExist:
+            raise serializers.ValidationError({"table_id": "Table with this ID does not exist."})
+
+        # Retrieve GameDay instance by ID
+        try:
+            game_day_instance = GameDay.objects.get(id=game_day_id)
+        except GameDay.DoesNotExist:
+            raise serializers.ValidationError({"game_day": "GameDay with this ID does not exist."})
+
+        # Now create the CloseFloot instance without duplicate arguments
+        close_floot_instance = CloseFloot.objects.create(
+            table=table,
+            game_day=game_day_instance,
+            close_flot=close_flot,
+            close_flot_total=close_flot_total,
+            result=close_flot_total - open_flot_total,
+            **validated_data
+        )
+        return close_floot_instance
+
+
+
 class TableSerializer(serializers.ModelSerializer):
     hall = serializers.CharField(source='hall.name', read_only=True)
+    latest_close_floot = serializers.SerializerMethodField()
+
 
     class Meta:
         model = Table
@@ -25,6 +69,13 @@ class TableSerializer(serializers.ModelSerializer):
         if not isinstance(value, dict):
             raise serializers.ValidationError("Open flot must be a dictionary with denominations and quantities.")
         return value
+
+
+    def get_latest_close_floot(self, obj):
+        # Get the latest close_floot record for this table
+        latest_close_floot = obj.closefloot_set.order_by('-created_at').first()
+        return CloseFlootSerializer(latest_close_floot).data if latest_close_floot else None
+
 
     def create(self, validated_data):
         open_flot = validated_data.get('open_flot', {})
@@ -69,7 +120,10 @@ class HallSerializer(serializers.ModelSerializer):
 
         return value
 
-class CloseFlootSerializer(serializers.ModelSerializer):
+
+
+
+class GameDaySerializer(serializers.ModelSerializer):
     class Meta:
-        model = CloseFloot
+        model = GameDay
         fields = '__all__'
