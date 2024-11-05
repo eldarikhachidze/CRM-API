@@ -2,11 +2,9 @@ from rest_framework import generics
 from rest_framework import status
 from rest_framework.views import APIView
 from rest_framework.response import Response
-from .models import Table, CloseFloot, Hall, GameDay
-from .serializers import TableSerializer, CloseFlootSerializer, HallSerializer, GameDaySerializer
-import logging
+from .models import Table, CloseFloot, Hall, GameDay, Plaque
+from .serializers import TableSerializer, CloseFlootSerializer, HallSerializer, GameDaySerializer, PlaqueSerializer
 
-logger = logging.getLogger(__name__)
 
 
 class TableListCreate(generics.ListCreateAPIView):
@@ -22,32 +20,30 @@ class TableListCreate(generics.ListCreateAPIView):
             return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
 class TableRetrieveUpdateDestroy(generics.RetrieveUpdateDestroyAPIView):
-    queryset = CloseFloot.objects.all()
-    serializer_class = CloseFlootSerializer
+    queryset = Table.objects.all()
+    serializer_class = TableSerializer
 
-    def get_object(self):
+    def put(self, request, *args, **kwargs):
         try:
-            return super().get_object()
-        except CloseFloot.DoesNotExist:
-            raise Http404("Close flot not found")
+            table = Table.objects.get(pk=kwargs['pk'])
+        except Table.DoesNotExist:
+            return Response({"message": "Table does not exist."}, status=status.HTTP_404_NOT_FOUND)
 
-    def get(self, request, pk, *args, **kwargs):
-        close_floot_instance = self.get_object()
-        serializer = self.get_serializer(close_floot_instance)
-        return Response(serializer.data)
+        serializer = self.get_serializer(table, data=request.data, partial=True)
+        if serializer.is_valid():
+            serializer.save()
+            return Response({"message": "Table has been updated."}, status=status.HTTP_200_OK)
+        else:
+            return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
-
-    def put(self, request, pk, *args, **kwargs):
+    def delete(self, request, *args, **kwargs):
         try:
-            close_floot_instance = self.get_object()
-            serializer = self.get_serializer(close_floot_instance, data=request.data, partial=True)
-            if serializer.is_valid():
-                serializer.save()
-                return Response({"message": "Close flot has been updated."}, status=status.HTTP_200_OK)
-            else:
-                return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
-        except CloseFloot.DoesNotExist:
-            return Response({"error": "Close flot not found."}, status=status.HTTP_404_NOT_FOUND)
+            table = Table.objects.get(pk=kwargs['pk'])
+        except Table.DoesNotExist:
+            return Response({"message": "Table does not exist."}, status=status.HTTP_404_NOT_FOUND)
+
+        table.delete()
+        return Response({"message": "Table has been deleted."}, status=status.HTTP_200_OK)
 
 
 
@@ -129,6 +125,48 @@ class CloseFlootRetrieveUpdateDestroy(generics.RetrieveUpdateDestroyAPIView):
             return Response({"error": "Close flot not found."}, status=status.HTTP_404_NOT_FOUND)
 
 
+class PlaqueCreateView(generics.CreateAPIView):
+    queryset = Plaque.objects.all()
+    serializer_class = PlaqueSerializer
+
+    def post(self, request, *args, **kwargs):
+        serializer = self.get_serializer(data=request.data)
+
+        # Extract the table_id and game_day from the incoming request data
+        table_id = request.data.get('table_id')
+        game_day_id = request.data.get('game_day')
+
+        # Check if a Plaque already exists for this table and game day
+        if Plaque.objects.filter(table_id=table_id, game_day_id=game_day_id, status=False).exists():
+            return Response(
+                {"error": "The table is already closed for the current game day."},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        if serializer.is_valid():
+            self.perform_create(serializer)
+            return Response({"message": "Table has been closed."}, status=status.HTTP_201_CREATED)
+        else:
+            return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+
+class PlaqueRetrieveUpdateDestroy(generics.RetrieveUpdateDestroyAPIView):
+    queryset = Plaque.objects.all()
+    serializer_class = PlaqueSerializer
+
+    def put(self, request, pk, *args, **kwargs):
+        try:
+            plaque_instance = self.get_object()
+            serializer = self.get_serializer(plaque_instance, data=request.data, partial=True)  # Allow partial updates
+            if serializer.is_valid():
+                serializer.save()
+                return Response({"message": "Plaque has been updated."}, status=status.HTTP_200_OK)
+            else:
+                return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+        except Plaque.DoesNotExist:
+            return Response({"error": "Plaque not found."}, status=status.HTTP_404_NOT_FOUND)
+
+
 class CreateGameDayView(APIView):
     def post(self, request):
         date = request.data.get('date')
@@ -151,10 +189,16 @@ class CreateGameDayView(APIView):
                     status=True,
                     game_day=game_day,
                     close_flot_total=0.0,
-                    close_flot={},  # Initialize with empty or default close_flot data
+                    close_flot={},
+                ),
+                Plaque.objects.create(
+                    table=table,
+                    status=True,
+                    game_day=game_day,
                     plaques_total=0.0,
-                    plaques={}  # Initialize with empty or default plaques data
+                    plaques={},
                 )
+
 
         return Response({'message': 'GameDay created and CloseFloot entries added.'}, status=status.HTTP_201_CREATED)
 

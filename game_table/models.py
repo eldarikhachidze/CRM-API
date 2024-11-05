@@ -22,7 +22,6 @@ class CloseFloot(models.Model):
     game_day = models.ForeignKey('GameDay', on_delete=models.CASCADE)
     status = models.BooleanField(default=True)
     close_flot_total = models.FloatField(default=0.0)
-    plaques_total = models.FloatField(default=0.0)
     fill_credit = models.FloatField(default=0.0)
     result = models.FloatField(default=0.0)  # Add this line if it's missing
     close_date = models.DateTimeField(null=True, blank=True)
@@ -30,6 +29,20 @@ class CloseFloot(models.Model):
     updated_at = models.DateTimeField(null=True, blank=True)
     deleted_at = models.DateTimeField(null=True, blank=True)
     close_flot = models.JSONField(default=dict)  # Default to an empty JSON object
+
+    def __str__(self):
+        return f"Table: {self.table.name}"
+
+
+class Plaque(models.Model):
+    table = models.ForeignKey(Table, on_delete=models.CASCADE)
+    game_day = models.ForeignKey('GameDay', on_delete=models.CASCADE)
+    status = models.BooleanField(default=True)
+    plaques_total = models.FloatField(default=0.0)
+    result = models.FloatField(default=0.0)  # Add this line if it's missing
+    created_at = models.DateTimeField(default=timezone.now)
+    updated_at = models.DateTimeField(null=True, blank=True)
+    deleted_at = models.DateTimeField(null=True, blank=True)
     plaques = models.JSONField(default=dict)  # Default to an empty JSON object
 
     def __str__(self):
