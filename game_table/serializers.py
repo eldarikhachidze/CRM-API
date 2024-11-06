@@ -1,6 +1,6 @@
 from rest_framework import serializers
 from django.utils import timezone
-from .models import Table, CloseFloot, Hall, GameDay, Plaque
+from .models import Table, CloseFloot, Hall, GameDay, Plaque, TableResult
 
 class CloseFlootSerializer(serializers.ModelSerializer):
     table_id = serializers.IntegerField(write_only=True)  # Direct mapping for input
@@ -48,18 +48,32 @@ class CloseFlootSerializer(serializers.ModelSerializer):
             result=close_flot_total - open_flot_total,
             **validated_data
         )
+
+        TableResult.objects.create(
+            table=table,
+            game_day=game_day_instance,
+            result=close_floot_instance.result
+        )
+
         return close_floot_instance
 
     def update(self, instance, validated_data):
-        # Update the instance fields
-        instance.close_flot = validated_data.get('close_flot', instance.close_flot)
-        instance.close_flot_total = validated_data.get('close_flot_total', instance.close_flot_total)
-        instance.result = validated_data.get('result', instance.result)
-        instance.status = validated_data.get('status', instance.status)
-        instance.updated_at = timezone.now()
+        # Update the close_flot data if provided in validated_data
+        close_flot = validated_data.get('close_flot', instance.close_flot)
+        close_flot_total = sum(
+            float(denomination) * float(quantity)
+            for denomination, quantity in close_flot.items()
+            if isinstance(quantity, (int, float))
+        )
 
-        instance.save()
-        return instance
+        CloseFloot.objects.update(
+            close_flot=close_flot,
+            close_flot_total=close_flot_total,
+            result=close_flot_total - instance.table.open_flot_total,
+            updated_at=timezone.now()
+        )
+
+        return CloseFloot
 
 
 
@@ -67,10 +81,11 @@ class TableSerializer(serializers.ModelSerializer):
     hall = serializers.CharField(source='hall.name', read_only=True)
     latest_close_floot = serializers.SerializerMethodField()
     latest_plaque = serializers.SerializerMethodField()
+    last_result = serializers.SerializerMethodField()
 
     class Meta:
         model = Table
-        fields = '__all__'
+        fields = ['id', 'name', 'open_flot', 'open_flot_total', 'hall', 'latest_close_floot', 'latest_plaque', 'last_result']
 
     def validate_name(self, value):
 
@@ -89,6 +104,13 @@ class TableSerializer(serializers.ModelSerializer):
         if not isinstance(value, dict):
             raise serializers.ValidationError("Open flot must be a dictionary with denominations and quantities.")
         return value
+
+    def get_last_result(self, obj):
+        try:
+            last_result = TableResult.objects.filter(table=obj).latest('created_at')
+            return last_result.result
+        except TableResult.DoesNotExist:
+            return 0.0
 
     def get_latest_plaque(self, obj):
         # Get the latest plaque record for this table
@@ -175,6 +197,11 @@ class PlaqueSerializer(serializers.ModelSerializer):
         except GameDay.DoesNotExist:
             raise serializers.ValidationError({"game_day": "GameDay with this ID does not exist."})
 
+        try:
+            last_result = TableResult.objects.filter(table=table, game_day=game_day_instance).latest('created_at')
+        except TableResult.DoesNotExist:
+            raise serializers.ValidationError({"table_id": "Table with this ID does not have a result for this game day."})
+
         plaque_instance = Plaque.objects.create(
             table=table,
             status=True,
@@ -184,6 +211,14 @@ class PlaqueSerializer(serializers.ModelSerializer):
             result=plaques_total,
             **validated_data
         )
+
+        TableResult.objects.create(
+            table=table,
+            game_day=game_day_instance,
+            result=plaques_total + last_result.result
+        )
+
+
         return plaque_instance
 
     def update(self, instance, validated_data):
@@ -195,7 +230,7 @@ class PlaqueSerializer(serializers.ModelSerializer):
         instance.save()
         return instance
 
-class GameDaySerializer(serializers.ModelSerializer):
+class GameDayLiveSerializer(serializers.ModelSerializer):
     class Meta:
         model = GameDay
         fields = '__all__'

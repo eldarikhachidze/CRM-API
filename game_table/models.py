@@ -23,12 +23,12 @@ class CloseFloot(models.Model):
     status = models.BooleanField(default=True)
     close_flot_total = models.FloatField(default=0.0)
     fill_credit = models.FloatField(default=0.0)
-    result = models.FloatField(default=0.0)  # Add this line if it's missing
+    result = models.FloatField(default=0.0)
     close_date = models.DateTimeField(null=True, blank=True)
     created_at = models.DateTimeField(default=timezone.now)
     updated_at = models.DateTimeField(null=True, blank=True)
     deleted_at = models.DateTimeField(null=True, blank=True)
-    close_flot = models.JSONField(default=dict)  # Default to an empty JSON object
+    close_flot = models.JSONField(default=dict)
 
     def __str__(self):
         return f"Table: {self.table.name}"
@@ -56,6 +56,17 @@ class Hall(models.Model):
 
     def __str__(self):
         return self.name
+
+class TableResult(models.Model):
+    table = models.ForeignKey(Table, on_delete=models.CASCADE)
+    game_day = models.ForeignKey('GameDay', on_delete=models.CASCADE)
+    result = models.FloatField(default=0.0)
+    created_at = models.DateTimeField(default=timezone.now)
+    updated_at = models.DateTimeField(null=True, blank=True)
+    deleted_at = models.DateTimeField(null=True, blank=True)
+
+    def __str__(self):
+        return f"Table: {self.table.name}"
 
 class GameDay(models.Model):
     date = models.DateField()

@@ -2,8 +2,8 @@ from rest_framework import generics
 from rest_framework import status
 from rest_framework.views import APIView
 from rest_framework.response import Response
-from .models import Table, CloseFloot, Hall, GameDay, Plaque
-from .serializers import TableSerializer, CloseFlootSerializer, HallSerializer, GameDaySerializer, PlaqueSerializer
+from .models import Table, CloseFloot, Hall, GameDay, Plaque, TableResult
+from .serializers import TableSerializer, CloseFlootSerializer, HallSerializer, GameDayLiveSerializer, PlaqueSerializer
 
 
 
@@ -198,6 +198,11 @@ class CreateGameDayView(APIView):
                     plaques_total=0.0,
                     plaques={},
                 )
+                TableResult.objects.create(
+                    table=table,
+                    game_day=game_day,
+                    result=0.0
+                )
 
 
         return Response({'message': 'GameDay created and CloseFloot entries added.'}, status=status.HTTP_201_CREATED)
@@ -205,7 +210,7 @@ class CreateGameDayView(APIView):
 
 class GameDayListView(generics.RetrieveAPIView):
     queryset = GameDay.objects.all()
-    serializer_class = GameDaySerializer
+    serializer_class = GameDayLiveSerializer
 
     def get_object(self):
         return self.queryset.latest('created_at')
