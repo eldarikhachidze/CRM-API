@@ -19,7 +19,7 @@ class Table(models.Model):
 
 class CloseFloot(models.Model):
     table = models.ForeignKey(Table, on_delete=models.CASCADE)
-    game_day = models.ForeignKey('GameDay', on_delete=models.CASCADE)
+    game_day = models.ForeignKey('GameDayLive', on_delete=models.CASCADE)
     status = models.BooleanField(default=True)
     close_flot_total = models.FloatField(default=0.0)
     fill_credit = models.FloatField(default=0.0)
@@ -36,7 +36,7 @@ class CloseFloot(models.Model):
 
 class Plaque(models.Model):
     table = models.ForeignKey(Table, on_delete=models.CASCADE)
-    game_day = models.ForeignKey('GameDay', on_delete=models.CASCADE)
+    game_day = models.ForeignKey('GameDayLive', on_delete=models.CASCADE)
     status = models.BooleanField(default=True)
     plaques_total = models.FloatField(default=0.0)
     result = models.FloatField(default=0.0)  # Add this line if it's missing
@@ -59,7 +59,7 @@ class Hall(models.Model):
 
 class TableResult(models.Model):
     table = models.ForeignKey(Table, on_delete=models.CASCADE)
-    game_day = models.ForeignKey('GameDay', on_delete=models.CASCADE)
+    game_day = models.ForeignKey('GameDayLive', on_delete=models.CASCADE)
     result = models.FloatField(default=0.0)
     created_at = models.DateTimeField(default=timezone.now)
     updated_at = models.DateTimeField(null=True, blank=True)
@@ -68,7 +68,7 @@ class TableResult(models.Model):
     def __str__(self):
         return f"Table: {self.table.name}"
 
-class GameDay(models.Model):
+class GameDayLive(models.Model):
     date = models.DateField()
     created_at = models.DateTimeField(default=timezone.now)
     updated_at = models.DateTimeField(null=True, blank=True)
