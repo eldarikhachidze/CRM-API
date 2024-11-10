@@ -138,7 +138,7 @@ class PlaqueCreateView(generics.CreateAPIView):
         # Check if a Plaque already exists for this table and game day
         if Plaque.objects.filter(table_id=table_id, game_day_id=game_day_id, status=False).exists():
             return Response(
-                {"error": "The table is already closed for the current game day."},
+                {"error": "The table is already counted for the current game day."},
                 status=status.HTTP_400_BAD_REQUEST
             )
 

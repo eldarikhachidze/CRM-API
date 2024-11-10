@@ -1,9 +1,6 @@
 from rest_framework import serializers
 from django.utils import timezone
 from .models import Table, CloseFloot, Hall, GameDayLive, Plaque, TableResult
-import logging
-
-logger = logging.getLogger(__name__)
 
 
 class CloseFlootSerializer(serializers.ModelSerializer):
@@ -15,7 +12,7 @@ class CloseFlootSerializer(serializers.ModelSerializer):
         model = CloseFloot
         fields = [
             'table_id',
-            'game_day',  # Added this line to include game_day
+            'game_day',
             'close_flot',
             'close_flot_total',
             'result',
@@ -87,9 +84,7 @@ class CloseFlootSerializer(serializers.ModelSerializer):
 
         try:
             table = Table.objects.get(id=table_id)
-            print('table', table)
             open_flot_total = table.open_flot_total
-            print('open_flot_total', open_flot_total)
 
         except Table.DoesNotExist:
             raise serializers.ValidationError({"table_id": "Table with this ID does not exist."})
@@ -97,15 +92,13 @@ class CloseFlootSerializer(serializers.ModelSerializer):
         # Retrieve the GameDay instance by ID
         try:
             game_day_instance = GameDayLive.objects.get(id=game_day_id)
-            print('game day', game_day_instance)
         except GameDayLive.DoesNotExist:
             raise serializers.ValidationError({"game_day": "GameDay with this ID does not exist."})
 
         close_flot_instance = CloseFloot.objects.get(table=table, game_day=game_day_instance)
+
         close_flot_instance.close_flot_total = close_flot_total
         close_flot_instance.result = close_flot_total - open_flot_total
-        print('close_flot_instance.close_flot_total', close_flot_instance.close_flot_total)
-        print('open_flot_total', open_flot_total)
         close_flot_instance.close_flot = close_flot
         close_flot_instance.updated_at = timezone.now()
         close_flot_instance.status = False
@@ -140,8 +133,13 @@ class TableSerializer(serializers.ModelSerializer):
             return 0.0
 
     def get_latest_plaque(self, obj):
-        latest_plaque = obj.plaque_set.order_by('-created_at').first()
-        return PlaqueSerializer(latest_plaque).data if latest_plaque else None
+        plaque_instance = obj.plaque_set.last()
+        if plaque_instance:
+            plaque_data = PlaqueSerializer(plaque_instance).data
+            # Add game_day field here
+            plaque_data['game_day'] = plaque_instance.game_day.id
+            return plaque_data
+        return None
 
     def get_latest_close_floot(self, obj):
         close_floot_instance = obj.closefloot_set.last()
@@ -203,8 +201,8 @@ class HallSerializer(serializers.ModelSerializer):
 
 
 class PlaqueSerializer(serializers.ModelSerializer):
-    table_id = serializers.IntegerField(write_only=True)  # Direct mapping for input
-    game_day = serializers.IntegerField(write_only=True)  # Direct mapping for input
+    table_id = serializers.IntegerField(write_only=True)
+    game_day = serializers.IntegerField(write_only=True)
 
     class Meta:
         model = Plaque
@@ -224,6 +222,7 @@ class PlaqueSerializer(serializers.ModelSerializer):
 
         try:
             table = Table.objects.get(id=table_id)
+            open_flot_total = table.open_flot_total
         except Table.DoesNotExist:
             raise serializers.ValidationError({"table_id": "Table with this ID does not exist."})
 
@@ -232,38 +231,62 @@ class PlaqueSerializer(serializers.ModelSerializer):
         except GameDayLive.DoesNotExist:
             raise serializers.ValidationError({"game_day": "GameDay with this ID does not exist."})
 
-        try:
-            last_result = TableResult.objects.filter(table=table, game_day=game_day_instance).latest('created_at')
-        except TableResult.DoesNotExist:
-            raise serializers.ValidationError(
-                {"table_id": "Table with this ID does not have a result for this game day."})
+        table_result, created = TableResult.objects.get_or_create(
+            table=table, game_day=game_day_instance
+        )
 
         plaque_instance = Plaque.objects.create(
             table=table,
-            status=True,
+            status=False,
             game_day=game_day_instance,
             plaques=plaques,
-            plaques_total=plaques_total,
+            plaques_total= table_result.result + plaques_total,
             result=plaques_total,
             **validated_data
         )
 
-        TableResult.objects.create(
-            table=table,
-            game_day=game_day_instance,
-            result=plaques_total + last_result.result
-        )
+        table_result.result = plaques_total
+        table_result.save()
 
         return plaque_instance
 
     def update(self, instance, validated_data):
-        instance.plaques = validated_data.get('plaques', instance.plaques)
-        instance.plaques_total = validated_data.get('plaques_total', instance.plaques_total)
-        instance.result = validated_data.get('result', instance.result)
-        instance.updated_at = timezone.now()
+        table_id = validated_data.pop('table_id')
+        game_day_id = validated_data.pop('game_day')
+        plaques = validated_data.pop('plaques', {})
 
-        instance.save()
-        return instance
+        plaques_total = sum(
+            float(denomination) * float(quantity)
+            for denomination, quantity in plaques.items()
+            if isinstance(quantity, (int, float))
+        )
+
+        try:
+            table = Table.objects.get(id=table_id)
+            open_flot_total = table.open_flot_total
+        except Table.DoesNotExist:
+            raise serializers.ValidationError({"table_id": "Table with this ID does not exist."})
+
+        try:
+            game_day_instance = GameDayLive.objects.get(id=game_day_id)
+        except GameDayLive.DoesNotExist:
+            raise serializers.ValidationError({"game_day": "GameDay with this ID does not exist."})
+
+        plaque_instance = Plaque.objects.get(table=table, game_day=game_day_instance)
+
+        plaque_instance.plaques_total = plaques_total
+        plaque_instance.plaques = plaques
+        plaque_instance.result = plaques_total
+        plaque_instance.updated_at = timezone.now()
+        plaque_instance.save()
+
+        table_result, created = TableResult.objects.get_or_create(
+            table=table, game_day=game_day_instance
+        )
+        table_result.result = plaques_total
+        table_result.save()
+
+        return plaque_instance
 
 
 class GameDayLiveSerializer(serializers.ModelSerializer):
