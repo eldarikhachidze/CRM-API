@@ -54,27 +54,16 @@ class CloseFlootSerializer(serializers.ModelSerializer):
             raise serializers.ValidationError({"game_day": "GameDay with this ID does not exist."})
 
         # Check if CloseFloot entry already exists for this table and game day
-        try:
-            close_floot_instance = CloseFloot.objects.get(table=table, game_day=game_day_instance)
 
-            close_floot_instance.close_flot = close_flot
-            close_floot_instance.close_flot_total = close_flot_total
-            close_floot_instance.result = close_flot_total - open_flot_total
-            close_floot_instance.status = False
-            close_floot_instance.close_date = timezone.now()
-            close_floot_instance.save()
-        except CloseFloot.DoesNotExist:
-            # If no existing entry, create a new one
-            close_floot_instance = CloseFloot.objects.create(
-                table=table,
-                status=False,
-                game_day=game_day_instance,
-                close_flot=close_flot,
-                close_flot_total=close_flot_total,
-                close_date=timezone.now(),
-                result=close_flot_total - open_flot_total,
-                **validated_data
-            )
+        close_floot_instance = CloseFloot.objects.get(table=table, game_day=game_day_instance)
+
+        close_floot_instance.close_flot = close_flot
+        close_floot_instance.close_flot_total = close_flot_total
+        close_floot_instance.result = close_flot_total - open_flot_total
+        close_floot_instance.status = False
+        close_floot_instance.close_date = timezone.now()
+        close_floot_instance.save()
+
 
         # Update or create the corresponding TableResult entry
         table_result, created = TableResult.objects.get_or_create(
@@ -89,27 +78,44 @@ class CloseFlootSerializer(serializers.ModelSerializer):
         table_id = validated_data.pop('table_id')
         game_day_id = validated_data.pop('game_day')
         close_flot = validated_data.pop('close_flot')
+
         close_flot_total = sum(
             float(denomination) * float(quantity)
             for denomination, quantity in close_flot.items()
             if isinstance(quantity, (int, float))
         )
 
-        open_flot_total = instance.table.open_flot_total
-        latest_close_floot = instance.table.closefloot_set.last()
+        try:
+            table = Table.objects.get(id=table_id)
+            print('table', table)
+            open_flot_total = table.open_flot_total
+            print('open_flot_total', open_flot_total)
 
-        latest_close_floot.close_flot = close_flot
-        latest_close_floot.close_flot_total = close_flot_total
-        latest_close_floot.result = close_flot_total - open_flot_total
-        latest_close_floot.status = validated_data.get('status', instance.status)
-        latest_close_floot.close_date = timezone.now()
-        latest_close_floot.updated_at = timezone.now()
-        latest_close_floot.save()
+        except Table.DoesNotExist:
+            raise serializers.ValidationError({"table_id": "Table with this ID does not exist."})
+
+        # Retrieve the GameDay instance by ID
+        try:
+            game_day_instance = GameDayLive.objects.get(id=game_day_id)
+            print('game day', game_day_instance)
+        except GameDayLive.DoesNotExist:
+            raise serializers.ValidationError({"game_day": "GameDay with this ID does not exist."})
+
+        close_flot_instance = CloseFloot.objects.get(table=table, game_day=game_day_instance)
+        close_flot_instance.close_flot_total = close_flot_total
+        close_flot_instance.result = close_flot_total - open_flot_total
+        print('close_flot_instance.close_flot_total', close_flot_instance.close_flot_total)
+        print('open_flot_total', open_flot_total)
+        close_flot_instance.close_flot = close_flot
+        close_flot_instance.updated_at = timezone.now()
+        close_flot_instance.status = False
+        close_flot_instance.save()
 
         table_result, created = TableResult.objects.get_or_create(
             table=table_id, game_day=game_day_id
         )
-        table_result.result = latest_close_floot.result
+
+        table_result.result = close_flot_instance.result
         table_result.save()
 
         return instance
@@ -145,6 +151,7 @@ class TableSerializer(serializers.ModelSerializer):
             close_floot_data['game_day'] = close_floot_instance.game_day.id  # Adjust the field as needed
             return close_floot_data
         return None
+
 
     def create(self, validated_data):
         open_flot = validated_data.get('open_flot', {})

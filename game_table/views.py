@@ -93,6 +93,13 @@ class CloseFlootCreateView(generics.CreateAPIView):
         table_id = request.data.get('table_id')
         game_day_id = request.data.get('game_day')
 
+        # Check if a CloseFloot already exists for this table and game day
+        if CloseFloot.objects.filter(table_id=table_id, game_day_id=game_day_id, status=False).exists():
+            return Response(
+                {"error": "The table is already closed for the current game day."},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
         if serializer.is_valid():
             self.perform_create(serializer)
             return Response({"message": "Table has been closed."}, status=status.HTTP_201_CREATED)
