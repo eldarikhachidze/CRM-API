@@ -29,11 +29,6 @@ class TableRetrieveUpdateDestroy(generics.RetrieveUpdateDestroyAPIView):
         except Table.DoesNotExist:
             return Response({"message": "Table does not exist."}, status=status.HTTP_404_NOT_FOUND)
 
-        # Ensure game_day is included in the request data
-        game_day = request.data.get('game_day')  # Get the game_day from the request
-        if not game_day:
-            return Response({"message": "Game day is missing."}, status=status.HTTP_400_BAD_REQUEST)
-
         # Update the serializer with game_day if provided
         serializer = self.get_serializer(table, data=request.data, partial=True)
         if serializer.is_valid():
@@ -138,13 +133,13 @@ class PlaqueCreateView(generics.CreateAPIView):
         # Check if a Plaque already exists for this table and game day
         if Plaque.objects.filter(table_id=table_id, game_day_id=game_day_id, status=False).exists():
             return Response(
-                {"error": "The table is already counted for the current game day."},
+                {"error": "The table is already closed for the current game day."},
                 status=status.HTTP_400_BAD_REQUEST
             )
 
         if serializer.is_valid():
             self.perform_create(serializer)
-            return Response({"message": "Table has been closed."}, status=status.HTTP_201_CREATED)
+            return Response({"message": "Plaque has been added."}, status=status.HTTP_201_CREATED)
         else:
             return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 

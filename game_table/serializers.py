@@ -181,11 +181,16 @@ class TableSerializer(serializers.ModelSerializer):
 
 
 class HallSerializer(serializers.ModelSerializer):
-    tables = TableSerializer(many=True, read_only=True, source='table_set')
+    tables = serializers.SerializerMethodField()
 
     class Meta:
         model = Hall
         fields = ['id', 'name', 'created_at', 'updated_at', 'deleted_at', 'tables']
+
+    def get_tables(self, obj):
+        # Get tables related to this hall, ordered by name
+        tables = obj.table_set.order_by('name')
+        return TableSerializer(tables, many=True, read_only=True).data
 
     def validate_name(self, value):
         if self.instance:
@@ -235,17 +240,16 @@ class PlaqueSerializer(serializers.ModelSerializer):
             table=table, game_day=game_day_instance
         )
 
-        plaque_instance = Plaque.objects.create(
-            table=table,
-            status=False,
-            game_day=game_day_instance,
-            plaques=plaques,
-            plaques_total= table_result.result + plaques_total,
-            result=plaques_total,
-            **validated_data
-        )
+        plaque_instance = Plaque.objects.get(table=table, game_day=game_day_instance)
 
-        table_result.result = plaques_total
+        plaque_instance.plaques_total = plaques_total
+        plaque_instance.plaques = plaques
+        plaque_instance.result = table_result.result + plaques_total
+        plaque_instance.created_at = timezone.now()
+        plaque_instance.status = False
+        plaque_instance.save()
+
+        table_result.result = table_result.result + plaques_total
         table_result.save()
 
         return plaque_instance
@@ -272,18 +276,19 @@ class PlaqueSerializer(serializers.ModelSerializer):
         except GameDayLive.DoesNotExist:
             raise serializers.ValidationError({"game_day": "GameDay with this ID does not exist."})
 
+        table_result, created = TableResult.objects.get_or_create(
+            table=table, game_day=game_day_instance
+        )
+
         plaque_instance = Plaque.objects.get(table=table, game_day=game_day_instance)
 
         plaque_instance.plaques_total = plaques_total
         plaque_instance.plaques = plaques
-        plaque_instance.result = plaques_total
+        plaque_instance.result = plaques_total + table_result.result
         plaque_instance.updated_at = timezone.now()
         plaque_instance.save()
 
-        table_result, created = TableResult.objects.get_or_create(
-            table=table, game_day=game_day_instance
-        )
-        table_result.result = plaques_total
+        table_result.result = plaques_total + table_result.result
         table_result.save()
 
         return plaque_instance
