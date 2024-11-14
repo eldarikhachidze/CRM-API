@@ -26,6 +26,7 @@ urlpatterns = [
     path('api/chip/', include('chip.urls')),
     path('api/table/', include('game_table.urls')),
     path('api/slot/', include('slot_machine.urls')),
+    path('api/transactions/', include('transactions.urls')),
 ]
 
 urlpatterns += doc_urls

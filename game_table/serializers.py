@@ -67,7 +67,6 @@ class CloseFlootSerializer(serializers.ModelSerializer):
         close_floot_instance.close_date = timezone.now()
         close_floot_instance.save()
 
-
         # Update or create the corresponding TableResult entry
         table_result, created = TableResult.objects.get_or_create(
             table=table, game_day=game_day_instance
@@ -162,7 +161,6 @@ class TableSerializer(serializers.ModelSerializer):
             return close_floot_data
         return None
 
-
     def create(self, validated_data):
         open_flot = validated_data.get('open_flot', {})
         sorted_open_flot = dict(sorted(open_flot.items(), key=lambda x: float(x[0])))
@@ -237,7 +235,6 @@ class PlaqueSerializer(serializers.ModelSerializer):
             if isinstance(quantity, (int, float)):
                 if quantity < 0:
                     raise serializers.ValidationError({"error": "Plaques quantity cannot be negative."})
-
 
         plaques_total = sum(
             float(denomination) * float(quantity)

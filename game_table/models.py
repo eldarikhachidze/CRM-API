@@ -1,6 +1,7 @@
 from django.db import models
 from django.utils import timezone
 
+
 # Create your models here.
 
 class Table(models.Model):
@@ -48,6 +49,7 @@ class Plaque(models.Model):
     def __str__(self):
         return f"Table: {self.table.name}"
 
+
 class Hall(models.Model):
     name = models.CharField(max_length=100, unique=True)
     created_at = models.DateTimeField(default=timezone.now)
@@ -56,6 +58,7 @@ class Hall(models.Model):
 
     def __str__(self):
         return self.name
+
 
 class TableResult(models.Model):
     table = models.ForeignKey(Table, on_delete=models.CASCADE)
@@ -67,6 +70,7 @@ class TableResult(models.Model):
 
     def __str__(self):
         return f"Table: {self.table.name}"
+
 
 class GameDayLive(models.Model):
     date = models.DateField()

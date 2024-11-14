@@ -46,6 +46,7 @@ INSTALLED_APPS = [
     'chip',
     'game_table',
     'slot_machine',
+    'transactions',
 ]
 
 MIDDLEWARE = [

@@ -3,8 +3,6 @@ from rest_framework.views import APIView
 from rest_framework.response import Response
 from .models import Table, CloseFloot, Hall, GameDayLive, Plaque, TableResult
 from .serializers import TableSerializer, CloseFlootSerializer, HallSerializer, GameDayLiveSerializer, PlaqueSerializer
-from  rest_framework.decorators import action
-
 
 class TableListCreate(generics.ListCreateAPIView):
     queryset = Table.objects.all().order_by('name')
