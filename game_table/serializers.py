@@ -15,7 +15,7 @@ class CloseFlootSerializer(serializers.ModelSerializer):
         model = CloseFloot
         fields = [
             'table_id',
-            'game_day',  # Added this line to include game_day
+            'game_day',
             'close_flot',
             'close_flot_total',
             'result',
