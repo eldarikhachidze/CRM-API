@@ -14,10 +14,27 @@ class FillCreditListCreate(generics.ListCreateAPIView):
 
     def post(self, request, *args, **kwargs):
         serializer = self.get_serializer(data=request.data)
-        print(f"request.data: {request.data}")
-        print(f"serializer: {serializer}")
         if serializer.is_valid():
             self.perform_create(serializer)
             return Response({"message": "Fill Credit has been Added."}, status=status.HTTP_201_CREATED)
+        else:
+            return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+
+class FillCreditRetrieveUpdateDestroy(generics.RetrieveUpdateDestroyAPIView):
+    queryset = FillCredit.objects.all()
+    serializer_class = FillCreditSerializer
+
+    def put(self, request, *args, **kwargs):
+        try:
+            fill_credit = FillCredit.objects.get(pk=kwargs['pk'])
+        except FillCredit.DoesNotExist:
+            return Response({"message": "Fill Credit does not exist."}, status=status.HTTP_404_NOT_FOUND)
+
+        # Update the serializer with game_day if provided
+        serializer = self.get_serializer(fill_credit, data=request.data, partial=True)
+        if serializer.is_valid():
+            serializer.save()
+            return Response({"message": "Fill Credit has been updated."}, status=status.HTTP_200_OK)
         else:
             return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
