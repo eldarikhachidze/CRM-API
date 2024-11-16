@@ -1,6 +1,7 @@
 from rest_framework import serializers
 from django.utils import timezone
 from .models import Table, CloseFloot, Hall, GameDayLive, Plaque, TableResult
+from transactions.models import FillCredit
 
 
 class CloseFlootSerializer(serializers.ModelSerializer):
@@ -130,11 +131,38 @@ class TableSerializer(serializers.ModelSerializer):
     latest_close_floot = serializers.SerializerMethodField()
     latest_plaque = serializers.SerializerMethodField()
     last_result = serializers.SerializerMethodField()
+    total_credit_today = serializers.SerializerMethodField()
+    total_fill_today = serializers.SerializerMethodField()
 
     class Meta:
         model = Table
-        fields = ['id', 'name', 'open_flot', 'open_flot_total', 'hall', 'latest_close_floot', 'latest_plaque',
+        fields = ['id', 'name', 'open_flot', 'open_flot_total', 'hall', 'latest_close_floot', 'total_credit_today', 'total_fill_today',  'latest_plaque',
                   'last_result']
+
+
+    def get_total_credit_today(self, obj):
+        try:
+            game_day = GameDayLive.objects.latest('created_at')
+            fill_credits_today = FillCredit.objects.filter(table=obj, game_day=game_day)
+            total_credit_today = sum(
+                fill_credit.fill_credit
+                for fill_credit in fill_credits_today if fill_credit.fill_credit > 0
+            )
+            return total_credit_today
+        except GameDayLive.DoesNotExist:
+            return 0.0
+
+    def get_total_fill_today(self, obj):
+        try:
+            game_day = GameDayLive.objects.latest('created_at')
+            fill_credits_today = FillCredit.objects.filter(table=obj, game_day=game_day)
+            total_fill_today = sum(
+                fill_credit.fill_credit
+                for fill_credit in fill_credits_today if fill_credit.fill_credit < 0
+            )
+            return total_fill_today
+        except GameDayLive.DoesNotExist:
+            return 0.0
 
     def get_last_result(self, obj):
         try:
@@ -147,8 +175,8 @@ class TableSerializer(serializers.ModelSerializer):
         plaque_instance = obj.plaque_set.last()
         if plaque_instance:
             plaque_data = PlaqueSerializer(plaque_instance).data
-            # Add game_day field here
             plaque_data['game_day'] = plaque_instance.game_day.id
+
             return plaque_data
         return None
 
@@ -156,8 +184,7 @@ class TableSerializer(serializers.ModelSerializer):
         close_floot_instance = obj.closefloot_set.last()
         if close_floot_instance:
             close_floot_data = CloseFlootSerializer(close_floot_instance).data
-            # Add game_day field here
-            close_floot_data['game_day'] = close_floot_instance.game_day.id  # Adjust the field as needed
+            close_floot_data['game_day'] = close_floot_instance.game_day.id
             return close_floot_data
         return None
 
