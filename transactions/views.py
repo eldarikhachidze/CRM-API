@@ -1,16 +1,49 @@
 from rest_framework import generics
 from rest_framework.response import Response
+from rest_framework.exceptions import NotFound
 from rest_framework import status
 from .models import FillCredit
 from .serializers import FillCreditSerializer
+from game_table.models import GameDayLive
 
 
 # Create your views here.
 
 
 class FillCreditListCreate(generics.ListCreateAPIView):
-    queryset = FillCredit.objects.all().order_by('created_at')
     serializer_class = FillCreditSerializer
+
+    def get_queryset(self):
+        start_date = self.request.query_params.get('start_date', None)
+        end_date = self.request.query_params.get('end_date', None)
+
+        if start_date and end_date:
+            try:
+                start_date = GameDayLive.objects.get(date=start_date)
+            except GameDayLive.DoesNotExist:
+                raise NotFound({"message": "Start date does not exist."})
+
+            try:
+                end_date = GameDayLive.objects.get(date=end_date)
+            except GameDayLive.DoesNotExist:
+                raise NotFound({"message": "End date does not exist."})
+
+            return FillCredit.objects.filter(game_day__date__gte=start_date.date, game_day__date__lte=end_date.date)
+
+        else:
+            try:
+                current_game_day = GameDayLive.objects.latest('date')
+                start_date = current_game_day
+                end_date = current_game_day
+            except GameDayLive.DoesNotExist:
+                raise NotFound({"message": "Game Day does not exist."})
+
+            return FillCredit.objects.filter(game_day__date__gte=start_date.date, game_day__date__lte=end_date.date)
+
+
+
+
+        return FillCredit.objects.filter(game_day__date__gte=start_date, game_day__date__lte=end_date)
 
     def post(self, request, *args, **kwargs):
         serializer = self.get_serializer(data=request.data)

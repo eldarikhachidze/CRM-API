@@ -18,6 +18,9 @@ class FillCreditSerializer(serializers.ModelSerializer):
     def get_game_date(self, obj):
         return obj.game_day.date if obj.game_day else None
 
+    def get(self, request):
+        return self.get(request)
+
     def create(self, validated_data):
         table_id = validated_data.pop('table')
         game_day_id = validated_data.pop('game_day')
