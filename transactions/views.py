@@ -4,7 +4,7 @@ from rest_framework.exceptions import NotFound
 from rest_framework import status
 from .models import FillCredit
 from .serializers import FillCreditSerializer
-from game_table.models import GameDayLive
+from game_table.models import GameDayLive, TableResult
 
 
 # Create your views here.
@@ -71,3 +71,21 @@ class FillCreditRetrieveUpdateDestroy(generics.RetrieveUpdateDestroyAPIView):
             return Response({"message": "Fill Credit has been updated."}, status=status.HTTP_200_OK)
         else:
             return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+    def delete(self, request, *args, **kwargs):
+        try:
+            fill_credit = FillCredit.objects.get(pk=kwargs['pk'])
+        except FillCredit.DoesNotExist:
+            return Response({"message": "Fill Credit does not exist."}, status=status.HTTP_404_NOT_FOUND)
+
+        try:
+            table_result = TableResult.objects.get(table=fill_credit.table, game_day=fill_credit.game_day)
+        except TableResult.DoesNotExist:
+            return Response({"message": "Table Result does not exist."}, status=status.HTTP_404_NOT_FOUND)
+
+        table_result.result -= fill_credit.fill_credit
+        table_result.save()
+
+        fill_credit.delete()
+
+        return Response({"message": "Fill Credit has been deleted."}, status=status.HTTP_200_OK)
