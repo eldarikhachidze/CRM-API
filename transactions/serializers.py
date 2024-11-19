@@ -28,6 +28,8 @@ class FillCreditSerializer(serializers.ModelSerializer):
         fill_credit_amount = validated_data.pop('fill_credit')
         action_time_str = validated_data.pop('action_time', None)
 
+        action_time = timezone.now()
+
         if action_time_str:
             if isinstance(action_time_str, str):
                 try:
@@ -61,7 +63,7 @@ class FillCreditSerializer(serializers.ModelSerializer):
         action_time = timezone.make_aware(action_time, timezone.get_current_timezone())
 
         try:
-            game_day_instance = GameDayLive.objects.get(id=game_day_id)
+            game_day_instance = GameDayLive.objects.get(id=game_day_id)  # Fixed here
         except GameDayLive.DoesNotExist:
             raise serializers.ValidationError({"message": "Game Day does not exist."})
 
@@ -69,7 +71,6 @@ class FillCreditSerializer(serializers.ModelSerializer):
             table=table_id, game_day=game_day_instance
         )
 
-        # Create the FillCredit record
         credit_amount = FillCredit.objects.create(
             table=table_id,
             game_day=game_day_instance,
