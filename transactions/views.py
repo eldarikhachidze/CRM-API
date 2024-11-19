@@ -42,9 +42,6 @@ class FillCreditListCreate(generics.ListCreateAPIView):
 
 
 
-
-        return FillCredit.objects.filter(game_day__date__gte=start_date, game_day__date__lte=end_date)
-
     def post(self, request, *args, **kwargs):
         serializer = self.get_serializer(data=request.data)
         if serializer.is_valid():

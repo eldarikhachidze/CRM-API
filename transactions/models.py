@@ -9,6 +9,7 @@ from game_table.models import Table, GameDayLive
 class FillCredit(models.Model):
     table = models.ForeignKey(Table, on_delete=models.CASCADE)
     game_day = models.ForeignKey(GameDayLive, on_delete=models.CASCADE)
+    action_time = models.DateTimeField(null=True, blank=True)
     fill_credit = models.FloatField(default=0.0)
     result = models.FloatField(default=0.0)
     created_at = models.DateTimeField(default=timezone.now)
