@@ -2,12 +2,12 @@ from rest_framework import serializers
 from .models import FillCredit
 from game_table.models import TableResult, GameDayLive
 from django.utils import timezone
-from datetime import datetime
 
 
 class FillCreditSerializer(serializers.ModelSerializer):
     table_name = serializers.SerializerMethodField()
     game_date = serializers.SerializerMethodField()
+    game_day = serializers.PrimaryKeyRelatedField(queryset=GameDayLive.objects.all())
 
     class Meta:
         model = FillCredit
@@ -24,56 +24,30 @@ class FillCreditSerializer(serializers.ModelSerializer):
 
     def create(self, validated_data):
         table_id = validated_data.pop('table')
-        game_day_id = validated_data.pop('game_day')
+        game_day_data = validated_data.pop('game_day')
+
         fill_credit_amount = validated_data.pop('fill_credit')
-        action_time_str = validated_data.pop('action_time', None)
 
-        action_time = timezone.now()
+        if isinstance(game_day_data, GameDayLive):
+            game_day_id = game_day_data.id
+        else:
+            game_day_id = game_day_data
 
-        if action_time_str:
-            if isinstance(action_time_str, str):
-                try:
-                    action_time = datetime.strptime(action_time_str, '%Y-%m-%d %H:%M')
-                    game_day_date = action_time.date()
+        action_time = validated_data.pop('action_time', None)
 
-                    try:
-                        game_day = GameDayLive.objects.get(date=game_day_date)
-                        game_day_id = game_day.id
-
-                    except GameDayLive.DoesNotExist:
-                        raise serializers.ValidationError({"message": "Game Day does not exist."})
-
-                except ValueError as e:
-                    raise serializers.ValidationError({"message": f"Invalid action_time format. {str(e)}"})
-
-            elif isinstance(action_time_str, datetime):
-                action_time = action_time_str
-                game_day_date = action_time.date()
-
-                try:
-                    game_day = GameDayLive.objects.get(date=game_day_date)
-                    game_day_id = game_day.id
-
-                except GameDayLive.DoesNotExist:
-                    raise serializers.ValidationError({"message": "Game Day does not exist."})
-
-        if timezone.is_aware(action_time):
-            action_time = timezone.make_naive(action_time, timezone.get_current_timezone())
-
-        action_time = timezone.make_aware(action_time, timezone.get_current_timezone())
-
-        try:
-            game_day_instance = GameDayLive.objects.get(id=game_day_id)  # Fixed here
-        except GameDayLive.DoesNotExist:
-            raise serializers.ValidationError({"message": "Game Day does not exist."})
+        if action_time:
+            if action_time.tzinfo is None:
+                action_time = timezone.make_aware(action_time, timezone.get_current_timezone())
+        else:
+            action_time = timezone.now()
 
         table_result, created = TableResult.objects.get_or_create(
-            table=table_id, game_day=game_day_instance
+            table=table_id, game_day_id=game_day_id
         )
 
-        credit_amount = FillCredit.objects.create(
+        fill_credit = FillCredit.objects.create(
             table=table_id,
-            game_day=game_day_instance,
+            game_day_id=game_day_id,
             fill_credit=fill_credit_amount,
             action_time=action_time
         )
@@ -81,7 +55,7 @@ class FillCreditSerializer(serializers.ModelSerializer):
         table_result.result += fill_credit_amount
         table_result.save()
 
-        return credit_amount
+        return fill_credit
 
     def update(self, instance, validated_data):
         fill_credit_id = instance.id
