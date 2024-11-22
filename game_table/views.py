@@ -1,8 +1,13 @@
 from rest_framework import status, viewsets, generics, mixins
 from rest_framework.views import APIView
 from rest_framework.response import Response
+from rest_framework.exceptions import NotFound
 from .models import Table, CloseFloot, Hall, GameDayLive, Plaque, TableResult
-from .serializers import TableSerializer, CloseFlootSerializer, HallSerializer, GameDayLiveSerializer, PlaqueSerializer
+from .serializers import TableSerializer, CloseFlootSerializer, HallSerializer, GameDayLiveSerializer, PlaqueSerializer, TableResultSerializer, TableResultSerializer
+from rest_framework.status import HTTP_404_NOT_FOUND, HTTP_200_OK, HTTP_201_CREATED
+from django.utils.dateparse import parse_date
+from django.utils.timezone import datetime
+
 
 class TableListCreate(generics.ListCreateAPIView):
     queryset = Table.objects.all().order_by('name')
@@ -69,10 +74,61 @@ class RemoveTableFromHall(generics.UpdateAPIView):
         return Response({"message": "Table has been removed from Hall."}, status=status.HTTP_200_OK)
 
 
-class HallListCreate(generics.ListCreateAPIView):
-    queryset = Hall.objects.all().order_by('name')
-    serializer_class = HallSerializer
+class HallListCreate(APIView):
+    def get(self, request):
+        date_str = request.query_params.get('date')
 
+        if date_str:
+            try:
+                game_date = datetime.strptime(date_str, "%Y-%m-%d").date()
+                game_day = GameDayLive.objects.get(date=date_str)
+                if not game_day:
+                    return Response({"message": "Game Day does not exist."}, status=status.HTTP_404_NOT_FOUND)
+            except GameDayLive.DoesNotExist:
+                return Response({"error": "Invalid date format. Use YYYY-MM-DD."}, status=status.HTTP_404_NOT_FOUND)
+        else:
+            game_day = GameDayLive.objects.latest('date')
+            print(game_day)
+        if not game_day:
+            return Response({"message": "Game Day does not exist."}, status=status.HTTP_404_NOT_FOUND)
+
+        halls = Hall.objects.prefetch_related('tables').all().order_by('name')
+        print(halls)
+        data = []
+
+        for hall in halls:
+            tables = []
+            for table in hall.tables.all().order_by('name'):
+                close_flot = table.closefloot_set.filter(game_day=game_day).first()
+                plaques = table.plaque_set.filter(game_day=game_day).first()
+                table_result = table.tableresult_set.filter(game_day=game_day).first()
+
+                tables.append({
+                    'id': table.id,
+                    'name': table.name,
+                    'open_flot_total': table.open_flot_total,
+                    'open_flot': table.open_flot,
+                    'status': close_flot.status,
+                    'close_flot': close_flot.close_flot if close_flot else None,
+                    'close_flot_total': close_flot.close_flot_total if close_flot else None,
+                    'close_date': close_flot.close_date if close_flot else None,
+                    'close_date_updated': close_flot.updated_at if close_flot else None,
+                    'fill_credit': close_flot.fill_credit if close_flot else None,
+                    'result': close_flot.result if close_flot else None,
+                    'plaques_total': plaques.plaques_total if plaques else None,
+                    'plaques': plaques.plaques if plaques else None,
+                    'plaques_date': plaques.created_at if plaques else None,
+                    'plaques_updated': plaques.updated_at if plaques else None,
+                    'table_result': table_result.result if table_result else None,
+                })
+
+            data.append({
+                'id': hall.id,
+                'name': hall.name,
+                'tables': tables
+            })
+
+        return Response(data, status=status.HTTP_200_OK)
 
 class CloseFlootCreateView(generics.CreateAPIView):
     queryset = CloseFloot.objects.all()

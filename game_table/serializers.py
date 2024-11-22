@@ -128,65 +128,11 @@ class CloseFlootSerializer(serializers.ModelSerializer):
 
 class TableSerializer(serializers.ModelSerializer):
     hall = serializers.CharField(source='hall.name', read_only=True)
-    latest_close_floot = serializers.SerializerMethodField()
-    latest_plaque = serializers.SerializerMethodField()
-    last_result = serializers.SerializerMethodField()
-    total_credit_today = serializers.SerializerMethodField()
-    total_fill_today = serializers.SerializerMethodField()
 
     class Meta:
         model = Table
         fields = ['id', 'name', 'open_flot', 'open_flot_total', 'hall', 'latest_close_floot', 'total_credit_today', 'total_fill_today',  'latest_plaque',
                   'last_result']
-
-
-    def get_total_credit_today(self, obj):
-        try:
-            game_day = GameDayLive.objects.latest('created_at')
-            fill_credits_today = FillCredit.objects.filter(table=obj, game_day=game_day)
-            total_credit_today = sum(
-                fill_credit.fill_credit
-                for fill_credit in fill_credits_today if fill_credit.fill_credit > 0
-            )
-            return total_credit_today
-        except GameDayLive.DoesNotExist:
-            return 0.0
-
-    def get_total_fill_today(self, obj):
-        try:
-            game_day = GameDayLive.objects.latest('created_at')
-            fill_credits_today = FillCredit.objects.filter(table=obj, game_day=game_day)
-            total_fill_today = sum(
-                fill_credit.fill_credit
-                for fill_credit in fill_credits_today if fill_credit.fill_credit < 0
-            )
-            return total_fill_today
-        except GameDayLive.DoesNotExist:
-            return 0.0
-
-    def get_last_result(self, obj):
-        try:
-            last_result = TableResult.objects.filter(table=obj).latest('created_at')
-            return last_result.result
-        except TableResult.DoesNotExist:
-            return 0.0
-
-    def get_latest_plaque(self, obj):
-        plaque_instance = obj.plaque_set.last()
-        if plaque_instance:
-            plaque_data = PlaqueSerializer(plaque_instance).data
-            plaque_data['game_day'] = plaque_instance.game_day.id
-
-            return plaque_data
-        return None
-
-    def get_latest_close_floot(self, obj):
-        close_floot_instance = obj.closefloot_set.last()
-        if close_floot_instance:
-            close_floot_data = CloseFlootSerializer(close_floot_instance).data
-            close_floot_data['game_day'] = close_floot_instance.game_day.id
-            return close_floot_data
-        return None
 
     def create(self, validated_data):
         open_flot = validated_data.get('open_flot', {})
@@ -222,11 +168,11 @@ class HallSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = Hall
-        fields = ['id', 'name', 'created_at', 'updated_at', 'deleted_at', 'tables']
+        fields = '__all__'
 
     def get_tables(self, obj):
         # Get tables related to this hall, ordered by name
-        tables = obj.table_set.order_by('name')
+        tables = obj.tables.order_by('name')
         return TableSerializer(tables, many=True, read_only=True).data
 
     def validate_name(self, value):
@@ -350,4 +296,12 @@ class PlaqueSerializer(serializers.ModelSerializer):
 class GameDayLiveSerializer(serializers.ModelSerializer):
     class Meta:
         model = GameDayLive
+        fields = '__all__'
+
+class TableResultSerializer(serializers.ModelSerializer):
+    table = serializers.CharField(source='table.name', read_only=True)
+    game_day = serializers.CharField(source='game_day.date', read_only=True)
+
+    class Meta:
+        model = TableResult
         fields = '__all__'

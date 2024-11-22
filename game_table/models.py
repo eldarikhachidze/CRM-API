@@ -7,7 +7,7 @@ from django.utils import timezone
 class Table(models.Model):
     name = models.CharField(max_length=200, unique=True)
     open_flot_total = models.FloatField(default=0.0)
-    hall = models.ForeignKey('Hall', on_delete=models.CASCADE, null=True, blank=True)
+    hall = models.ForeignKey('Hall', on_delete=models.CASCADE, null=True, blank=True, related_name='tables')
     result = models.FloatField(default=0.0)  # Add this line if it's missing
     date_created = models.DateTimeField(default=timezone.now)
     date_edited = models.DateTimeField(null=True, blank=True)
