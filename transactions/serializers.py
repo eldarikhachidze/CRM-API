@@ -30,21 +30,16 @@ class FillCreditSerializer(serializers.ModelSerializer):
 
         if isinstance(game_day_data, GameDayLive):
             game_day_id = game_day_data.id
-            print(game_day_id)
         else:
             game_day_id = game_day_data
-            print(game_day_id)
 
         action_time = validated_data.pop('action_time', None)
 
         if action_time:
             if timezone.is_naive(action_time):
                 action_time = timezone.make_aware(action_time, timezone.get_current_timezone())
-                print('action time', action_time)
             action_date = action_time.date()
-            print('action_date', action_date)
 
-            # Fetch the game day ID
             try:
                 game_day_id = GameDayLive.objects.get(date=action_date).id
                 print(game_day_id)
@@ -52,7 +47,6 @@ class FillCreditSerializer(serializers.ModelSerializer):
                 raise serializers.ValidationError({"message": "Game Day does not exist."})
         else:
             action_time = timezone.now() + timedelta(hours=4)
-            print('action time if not action time', action_time)
 
         try:
             close_floot = CloseFloot.objects.filter(table=table_id, game_day_id=game_day_id).first()
@@ -96,22 +90,15 @@ class FillCreditSerializer(serializers.ModelSerializer):
         game_day_data = validated_data.pop('game_day', instance.game_day)
         new_fill_credit_amount = validated_data.pop('fill_credit', instance.fill_credit)
         new_action_time = validated_data.pop('action_time', instance.action_time)
-        print('action_time', new_action_time)
 
         if isinstance(game_day_data, GameDayLive):
             game_day_id = game_day_data.id
-            print('game_day_id 1', game_day_id)
         else:
             game_day_id = game_day_data
-            print('game_day_id 2', game_day_id)
-        # aq maqvs problema.
-
 
         if timezone.is_naive(new_action_time):
             new_action_time = timezone.make_aware(new_action_time, timezone.get_current_timezone())
-            print('action time', new_action_time)
         action_date = new_action_time.date()
-        print('action_date', action_date)
 
         try:
             close_floot = CloseFloot.objects.filter(table=table_id, game_day_id=game_day_id).first()

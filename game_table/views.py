@@ -114,6 +114,7 @@ class HallListCreate(APIView):
                     'close_date': close_flot.close_date if close_flot else None,
                     'close_date_updated': close_flot.updated_at if close_flot else None,
                     'result': close_flot.result if close_flot else None,
+                    'plaques_id': plaques.id if plaques else None,
                     'plaques_total': plaques.plaques_total if plaques else None,
                     'plaques': plaques.plaques if plaques else None,
                     'plaques_date': plaques.created_at if plaques else None,
