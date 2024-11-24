@@ -32,7 +32,6 @@ class TableRetrieveUpdateDestroy(generics.RetrieveUpdateDestroyAPIView):
         except Table.DoesNotExist:
             return Response({"message": "Table does not exist."}, status=status.HTTP_404_NOT_FOUND)
 
-        # Update the serializer with game_day if provided
         serializer = self.get_serializer(table, data=request.data, partial=True)
         if serializer.is_valid():
             serializer.save()
@@ -52,7 +51,6 @@ class AddTableToHall(generics.UpdateAPIView):
         except Hall.DoesNotExist:
             return Response({"message": "Hall does not exist."}, status=status.HTTP_404_NOT_FOUND)
 
-        # Assign the hall to the table
         table.hall = hall
         table.save()
 
@@ -88,12 +86,11 @@ class HallListCreate(APIView):
                 return Response({"error": "Invalid date format. Use YYYY-MM-DD."}, status=status.HTTP_404_NOT_FOUND)
         else:
             game_day = GameDayLive.objects.latest('date')
-            print(game_day)
+
         if not game_day:
             return Response({"message": "Game Day does not exist."}, status=status.HTTP_404_NOT_FOUND)
 
         halls = Hall.objects.prefetch_related('tables').all().order_by('name')
-        print(halls)
         data = []
 
         for hall in halls:
@@ -109,11 +106,13 @@ class HallListCreate(APIView):
                     'open_flot_total': table.open_flot_total,
                     'open_flot': table.open_flot,
                     'status': close_flot.status,
+                    'close_flot_id': close_flot.id if close_flot else None,
                     'close_flot': close_flot.close_flot if close_flot else None,
                     'close_flot_total': close_flot.close_flot_total if close_flot else None,
+                    'total_fill': close_flot.total_fill if close_flot else 0,
+                    'total_credit': close_flot.total_credit if close_flot else 0,
                     'close_date': close_flot.close_date if close_flot else None,
                     'close_date_updated': close_flot.updated_at if close_flot else None,
-                    'fill_credit': close_flot.fill_credit if close_flot else None,
                     'result': close_flot.result if close_flot else None,
                     'plaques_total': plaques.plaques_total if plaques else None,
                     'plaques': plaques.plaques if plaques else None,
@@ -221,45 +220,39 @@ class CreateGameDayView(APIView):
         if not date:
             return Response({'message': 'Date is required'}, status=status.HTTP_400_BAD_REQUEST)
 
-        # Check if a GameDay already exists for the date
         game_day, created = GameDayLive.objects.get_or_create(date=date)
 
         if not created:
             return Response({'message': 'GameDay already exists for this date.'}, status=status.HTTP_400_BAD_REQUEST)
 
-        # Create CloseFloot entries for each hall's tables
         halls = Hall.objects.all()
         for hall in halls:
             tables = Table.objects.filter(hall=hall)
             for table in tables:
-                # Get the open_flot and open_flot_total for the table
                 open_flot = table.open_flot
                 open_flot_total = table.open_flot_total
 
-                # Create CloseFloot entry, set close_flot and close_flot_total to match open_flot and open_flot_total
                 CloseFloot.objects.create(
                     table=table,
                     status=True,
                     game_day=game_day,
-                    close_flot=open_flot,  # Setting close_flot to match open_flot
-                    close_flot_total=open_flot_total,  # Setting close_flot_total to match open_flot_total
-                    result=0.0  # Initialize result to 0.0
+                    close_flot=open_flot,
+                    close_flot_total=open_flot_total,
+                    result=0.0
                 )
 
-                # Create Plaque entry
                 Plaque.objects.create(
                     table=table,
                     status=True,
                     game_day=game_day,
                     plaques_total=0.0,
-                    plaques={},  # Initial empty plaques
+                    plaques={},
                 )
 
-                # Create TableResult entry, initialize result to 0
                 TableResult.objects.create(
                     table=table,
                     game_day=game_day,
-                    result=0.0  # Initialize result to 0.0
+                    result=0.0
                 )
 
         return Response({'message': 'GameDay created and CloseFloot entries added.'}, status=status.HTTP_201_CREATED)
@@ -273,7 +266,6 @@ class GameDayListView(generics.RetrieveAPIView):
         try:
             return self.queryset.latest('created_at')
         except GameDayLive.DoesNotExist:
-            # Return a custom response or handle the absence of records as needed
             self.kwargs['pk'] = None
             return None
 

@@ -5,8 +5,8 @@ from transactions.models import FillCredit
 
 
 class CloseFlootSerializer(serializers.ModelSerializer):
-    table_id = serializers.IntegerField(write_only=True)  # Direct mapping for input
-    game_day = serializers.IntegerField(write_only=True)  # Direct mapping for input
+    table_id = serializers.IntegerField(write_only=True)
+    game_day_id = serializers.IntegerField(read_only=True, source="game_day.id")
     close_flot = serializers.DictField(child=serializers.IntegerField())
 
     class Meta:
@@ -14,6 +14,7 @@ class CloseFlootSerializer(serializers.ModelSerializer):
         fields = [
             'table_id',
             'game_day',
+            'game_day_id',
             'close_flot',
             'close_flot_total',
             'result',
@@ -26,38 +27,37 @@ class CloseFlootSerializer(serializers.ModelSerializer):
         ]
 
     def create(self, validated_data):
-        # Extract table_id, game_day_id, and close_flot from validated_data
         table_id = validated_data.pop('table_id')
-        game_day_id = validated_data.pop('game_day')
+        game_day_data = validated_data.pop('game_day')
         close_flot = validated_data.pop('close_flot')
 
-        # Check if close flot quantity is negative number
+
+        if isinstance(game_day_data, GameDayLive):
+            game_day_id = game_day_data.id
+        else:
+            game_day_id = game_day_data
+
         for denomination, quantity in close_flot.items():
             if isinstance(quantity, (int, float)):
                 if quantity < 0:
                     raise serializers.ValidationError({"message": "Close flot quantity cannot be negative."})
 
-        # Calculate close_flot_total
         close_flot_total = sum(
             float(denomination) * float(quantity)
             for denomination, quantity in close_flot.items()
             if isinstance(quantity, (int, float))
         )
 
-        # Retrieve the Table instance
         try:
             table = Table.objects.get(id=table_id)
             open_flot_total = table.open_flot_total
         except Table.DoesNotExist:
             raise serializers.ValidationError({"table_id": "Table with this ID does not exist."})
 
-        # Retrieve the GameDay instance by ID
         try:
             game_day_instance = GameDayLive.objects.get(id=game_day_id)
         except GameDayLive.DoesNotExist:
             raise serializers.ValidationError({"game_day": "GameDay with this ID does not exist."})
-
-        # Check if CloseFloot entry already exists for this table and game day
 
         close_floot_instance = CloseFloot.objects.get(table=table, game_day=game_day_instance)
 
@@ -68,21 +68,17 @@ class CloseFlootSerializer(serializers.ModelSerializer):
         close_floot_instance.close_date = timezone.now()
         close_floot_instance.save()
 
-        # Update or create the corresponding TableResult entry
         table_result, created = TableResult.objects.get_or_create(
             table=table, game_day=game_day_instance
         )
-        table_result.result = close_floot_instance.result
+        table_result.result += close_floot_instance.result
         table_result.save()
 
         return close_floot_instance
 
     def update(self, instance, validated_data):
-        table_id = validated_data.pop('table_id')
-        game_day_id = validated_data.pop('game_day')
         close_flot = validated_data.pop('close_flot')
 
-        # Check if close flot quantity is negative number
         for denomination, quantity in close_flot.items():
             if isinstance(quantity, (int, float)):
                 if quantity < 0:
@@ -94,33 +90,26 @@ class CloseFlootSerializer(serializers.ModelSerializer):
             if isinstance(quantity, (int, float))
         )
 
-        try:
-            table = Table.objects.get(id=table_id)
-            open_flot_total = table.open_flot_total
+        table = instance.table
+        game_day_instance = instance.game_day
+        open_flot_total = table.open_flot_total
 
-        except Table.DoesNotExist:
-            raise serializers.ValidationError({"error": "Table with this ID does not exist."})
+        table_result = TableResult.objects.get(table=table, game_day=game_day_instance)
+        print('table_result.result', table_result.result)
+        print('instance.result', instance.result)
+        table_result.result -= instance.result
+        print('table_result.result', table_result.result)
 
-        # Retrieve the GameDay instance by ID
-        try:
-            game_day_instance = GameDayLive.objects.get(id=game_day_id)
-        except GameDayLive.DoesNotExist:
-            raise serializers.ValidationError({"error": "GameDay with this ID does not exist."})
+        instance.close_flot = close_flot
+        print('instance.close_flot_total', instance.close_flot_total)
+        print('close_flot_total', close_flot_total)
+        instance.result = open_flot_total - close_flot_total
+        instance.close_flot_total = close_flot_total
+        instance.updated_at = timezone.now()
+        instance.status = validated_data.get('status', instance.status)
+        instance.save()
 
-        close_flot_instance = CloseFloot.objects.get(table=table, game_day=game_day_instance)
-
-        close_flot_instance.close_flot_total = close_flot_total
-        close_flot_instance.result = close_flot_total - open_flot_total
-        close_flot_instance.close_flot = close_flot
-        close_flot_instance.updated_at = timezone.now()
-        close_flot_instance.status = False
-        close_flot_instance.save()
-
-        table_result, created = TableResult.objects.get_or_create(
-            table=table_id, game_day=game_day_id
-        )
-
-        table_result.result = close_flot_instance.result
+        table_result.result = instance.result
         table_result.save()
 
         return instance
@@ -128,11 +117,11 @@ class CloseFlootSerializer(serializers.ModelSerializer):
 
 class TableSerializer(serializers.ModelSerializer):
     hall = serializers.CharField(source='hall.name', read_only=True)
+    latest_close_flot = serializers.SerializerMethodField()
 
     class Meta:
         model = Table
-        fields = ['id', 'name', 'open_flot', 'open_flot_total', 'hall', 'latest_close_floot', 'total_credit_today', 'total_fill_today',  'latest_plaque',
-                  'last_result']
+        fields = '__all__'
 
     def create(self, validated_data):
         open_flot = validated_data.get('open_flot', {})
@@ -239,7 +228,7 @@ class PlaqueSerializer(serializers.ModelSerializer):
         plaque_instance.status = False
         plaque_instance.save()
 
-        table_result.result = table_result.result + plaques_total
+        table_result.result += plaques_total
         table_result.save()
 
         return plaque_instance
@@ -249,7 +238,6 @@ class PlaqueSerializer(serializers.ModelSerializer):
         game_day_id = validated_data.pop('game_day')
         plaques = validated_data.pop('plaques', {})
 
-        # check if plaques quantity is negative number
         for denomination, quantity in plaques.items():
             print(denomination, quantity)
             if isinstance(quantity, (int, float)):
@@ -273,9 +261,10 @@ class PlaqueSerializer(serializers.ModelSerializer):
         except GameDayLive.DoesNotExist:
             raise serializers.ValidationError({"error": "GameDay with this ID does not exist."})
 
-        table_result, created = TableResult.objects.get_or_create(
-            table=table, game_day=game_day_instance
-        )
+        try:
+            table_result = TableResult.objects.get(table=table, game_day=game_day_instance)
+        except TableResult.DoesNotExist:
+            raise serializers.ValidationError({"error": "Table Result does not exist."})
 
         close_flot_total = CloseFloot.objects.get(table=table, game_day=game_day_instance).close_flot_total
         open_flot_total = table.open_flot_total
@@ -287,7 +276,7 @@ class PlaqueSerializer(serializers.ModelSerializer):
         plaque_instance.updated_at = timezone.now()
         plaque_instance.save()
 
-        table_result.result = plaque_instance.result
+        table_result.result += plaque_instance.result
         table_result.save()
 
         return plaque_instance
